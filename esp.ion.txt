@@ -1,0 +1,109 @@
+#define BLYNK_TEMPLATE_ID "TMPL3G7I312cj"
+#define BLYNK_TEMPLATE_NAME "DHT11"
+#include <WiFi.h>
+#include <BlynkSimpleEsp32.h>
+#include <DHT.h>
+
+// Blynk and WiFi credentials
+char auth[] = "mlE1Ig9YvQOfKEA1OX3CSYsoLEzI7nF6";
+char ssid[] = "MANOJ";
+char pass[] = "MANOJ123";
+
+// Pin definitions
+#define DHTPIN 4
+#define DHTTYPE DHT11
+#define RELAY_FAN 5
+#define RELAY_LIGHT 23
+#define MQ2_PIN 35
+#define SOIL_PIN 34
+
+// Virtual pins
+#define TEMP_VPIN V0
+#define HUM_VPIN V1
+#define FAN_VPIN V2
+#define SOIL_VPIN V3
+#define NH3_VPIN V4
+#define H2S_VPIN V5
+#define LIGHT_VPIN V6
+
+DHT dht(DHTPIN, DHTTYPE);
+BlynkTimer timer;
+
+// Function to read sensors
+void sendSensorData() {
+  float temp = dht.readTemperature();
+  float hum = dht.readHumidity();
+  int soilValue = analogRead(SOIL_PIN);
+  int mq2Value = analogRead(MQ2_PIN);
+  int moisturePercent = map(soilValue, 4095, 0, 0, 100);
+
+  if (isnan(temp) || isnan(hum)) {
+    Serial.println("❌ Failed to read from DHT sensor!");
+    return;
+  }
+
+  // Convert MQ2 reading to approximate ppm (just for visualization)
+  float nh3_ppm = map(mq2Value, 0, 4095, 0, 500);
+  float h2s_ppm = map(mq2Value, 0, 4095, 0, 200);
+
+  // Print readings
+  Serial.print("🌡 Temp: "); Serial.print(temp);
+  Serial.print(" °C | 💧 Humidity: "); Serial.print(hum);
+  Serial.print(" % | 🌱 Soil: "); Serial.print(moisturePercent);
+  Serial.print(" % | 💨 NH3: "); Serial.print(nh3_ppm);
+  Serial.print(" ppm | ☣️ H2S: "); Serial.println(h2s_ppm);
+
+  // Send to Blynk
+  Blynk.virtualWrite(TEMP_VPIN, temp);
+  Blynk.virtualWrite(HUM_VPIN, hum);
+  Blynk.virtualWrite(SOIL_VPIN, moisturePercent);
+  Blynk.virtualWrite(NH3_VPIN, nh3_ppm);
+  Blynk.virtualWrite(H2S_VPIN, h2s_ppm);
+
+  // Auto Fan control based on temperature
+  if (temp > 31) {
+    digitalWrite(RELAY_FAN, LOW);
+    Blynk.virtualWrite(FAN_VPIN, 1);
+    Serial.println("🌀 Fan ON");
+  } else {
+    digitalWrite(RELAY_FAN, HIGH);
+    Blynk.virtualWrite(FAN_VPIN, 0);
+    Serial.println("🛑 Fan OFF");
+  }
+}
+
+// Manual Light control via Blynk app
+BLYNK_WRITE(LIGHT_VPIN) {
+  int lightState = param.asInt();
+  if (lightState == 1) {
+    digitalWrite(RELAY_LIGHT, LOW);  // Turn ON light
+    Serial.println("💡 Light ON (from Blynk)");
+  } else {
+    digitalWrite(RELAY_LIGHT, HIGH); // Turn OFF light
+    Serial.println("🌑 Light OFF (from Blynk)");
+  }
+}
+
+void setup() {
+  Serial.begin(115200);
+  dht.begin();
+
+  pinMode(RELAY_FAN, OUTPUT);
+  pinMode(RELAY_LIGHT, OUTPUT);
+  pinMode(SOIL_PIN, INPUT);
+  pinMode(MQ2_PIN, INPUT);
+
+  // Relays default OFF
+  digitalWrite(RELAY_FAN, HIGH);
+  digitalWrite(RELAY_LIGHT, HIGH);
+
+  Blynk.begin(auth, ssid, pass);
+  timer.setInterval(2000L, sendSensorData);
+
+  Serial.println("🚀 ESP32 + DHT11 + MQ2 + Soil + Relays + Blynk setup complete!");
+}
+
+void loop() {
+  Blynk.run();
+  timer.run();
+}
