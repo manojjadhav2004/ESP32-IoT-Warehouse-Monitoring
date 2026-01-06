@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>ESP32 Smart IoT Dashboard PRO</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/justgage"></script>
+  <script src="https://cdn.jsdelivr.net/npm/raphael"></script>
+  <!-- jsPDF for PDF report -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <style>
+    * { font-family: "Poppins", sans-serif; box-sizing: border-box; }
+    body {
+      background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+      background-size: 600% 600%;
+      animation: bgshift 25s ease infinite;
+      color: #fff;
+      text-align: center;
+      margin: 0;
+      padding: 20px;
+      min-height: 100vh;
+      transition: 0.4s;
+    }
+    @keyframes bgshift {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+    h1 {
+      font-size: 32px;
+      text-shadow: 0 0 20px #00ffff;
+      margin-bottom: 10px;
+    }
+    #themeToggle {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: #00ffff;
+      border: none;
+      border-radius: 50%;
+      padding: 10px;
+      cursor: pointer;
+      font-size: 20px;
+    }
+    #alertBox {
+      padding: 8px 14px;
+      border-radius: 8px;
+      margin: 10px auto;
+      width: max-content;
+      background: #00aa66;
+      font-weight: bold;
+      transition: 0.3s;
+    }
+    #statusBadge {
+      padding: 6px 12px;
+      border-radius: 8px;
+      background: #555;
+      width: max-content;
+      margin: 10px auto 20px;
+    }
+    .dashboard {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 20px;
+      width: 90%;
+      max-width: 1200px;
+      margin: auto;
+    }
+    .card {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 15px;
+      padding: 20px;
+      box-shadow: 0 0 15px rgba(0, 255, 255, 0.2);
+      backdrop-filter: blur(10px);
+      position: relative;
+      transition: 0.3s;
+    }
+    .card:hover { transform: translateY(-3px); box-shadow: 0 0 20px rgba(0,255,255,0.4); }
+    .progress {
+      width: 100%;
+      height: 10px;
+      background: rgba(255,255,255,0.15);
+      border-radius: 10px;
+      margin-top: 8px;
+      overflow: hidden;
+    }
+    .bar {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #00ff99, #ff3333);
+      transition: width 0.5s ease;
+    }
+    .on { background: #00ff99; color: #000; }
+    .off { background: #ff3b3b; }
+    button {
+      border: none;
+      padding: 10px 15px;
+      margin-top: 10px;
+      border-radius: 8px;
+      background: #00ffff;
+      color: #000;
+      font-weight: bold;
+      cursor: pointer;
+      transition: 0.2s ease;
+    }
+    button:hover { background: #00ffaa; transform: scale(1.05); }
+    .download-group { display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-top:10px; }
+    footer { margin-top: 25px; font-size: 13px; opacity: 0.6; }
+
+    /* Fan Animation */
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    .fan-rotating { animation: spin 1s linear infinite; transform-origin: center; }
+
+    /* Light Theme */
+    body.light {
+      background: #f5f5f5;
+      color: #000;
+    }
+    body.light .card {
+      background: rgba(0, 0, 0, 0.05);
+      color: #000;
+      box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
+    }
+    body.light #themeToggle { background: #111; color: #fff; }
+    @media (max-width: 600px) {
+      .dashboard { grid-template-columns: 1fr; }
+      h1 { font-size: 24px; }
+    }
+  </style>
+</head>
+<body>
+  <h1>🌡 Temperature And Humidity Monitoring System Dashboard </h1>
+  <button id="themeToggle">🌙</button>
+  <div id="alertBox">✅ All Systems Normal</div>
+  <div id="statusBadge">Connecting...</div>
+
+  <div class="dashboard">
+    <div class="card">
+      <h2>🌡 Temperature</h2>
+      <div id="tempGauge" style="width:200px; height:160px; margin:auto;"></div>
+      <p><span id="tempValue">--</span> °C</p>
+      <div class="progress"><div id="tempBar" class="bar"></div></div>
+    </div>
+
+    <div class="card">
+      <h2>💧 Humidity</h2>
+      <div id="humGauge" style="width:200px; height:160px; margin:auto;"></div>
+      <p><span id="humValue">--</span> %</p>
+      <div class="progress"><div id="humBar" class="bar"></div></div>
+    </div>
+
+    <div class="card">
+      <h2>🌱 Warehouse Moisture</h2>
+      <div id="moistureGauge" style="width:200px; height:160px; margin:auto;"></div>
+      <p><span id="moistureValue">--</span> %</p>
+      <div class="progress"><div id="moistBar" class="bar"></div></div>
+    </div>
+
+    <div class="card">
+      <h2>🌀 Fan Control</h2>
+      <svg id="fanIcon" width="70" height="70" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="margin-top:10px;">
+        <path d="M12 12m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" fill="#00ffcc"/>
+        <path d="M12 12l8 -2.5l-1 3.5l-7 2.5z" fill="#00ffcc"/>
+        <path d="M12 12l-5 7l-1.5 -3l6.5 -4z" fill="#00ffcc"/>
+        <path d="M12 12l-4 -8l3 1l1 7z" fill="#00ffcc"/>
+      </svg>
+      <div id="fanStatus" class="off">🛑 Fan OFF</div>
+      <button onclick="toggleFan(true)">Turn ON</button>
+      <button onclick="toggleFan(false)">Turn OFF</button>
+      <p id="lastUpdated">Last updated: --</p>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:25px; width:90%; max-width:900px;">
+    <h2>📊 Live Sensor Data</h2>
+    <canvas id="dataChart" height="180"></canvas>
+
+    <div class="download-group">
+      <button onclick="downloadCSV()">📥 Download CSV</button>
+      <button onclick="downloadPDF()">📄 Download PDF Report</button>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:25px;">
+    <h2>📈 System Summary</h2>
+    <p>Avg Temp: <span id="avgTemp">--</span> °C</p>
+    <p>Avg Humidity: <span id="avgHum">--</span> %</p>
+    <p>Avg Moisture: <span id="avgMoist">--</span> %</p>
+  </div>
+
+  <footer>Made by Manoj ⚡ ESP32 + DHT11 + Warehouse Moisture + Blynk IoT</footer>
+
+  <script>
+    // Blynk token
+    const token = "mlE1Ig9YvQOfKEA1OX3CSYsoLEzI7nF6";
+
+    // Elements
+    const tempVal = document.getElementById("tempValue");
+    const humVal = document.getElementById("humValue");
+    const moistVal = document.getElementById("moistureValue");
+    const fanStatus = document.getElementById("fanStatus");
+    const fanIcon = document.getElementById("fanIcon");
+    const lastUpdated = document.getElementById("lastUpdated");
+    const alertBox = document.getElementById("alertBox");
+    const statusBadge = document.getElementById("statusBadge");
+    const themeToggle = document.getElementById("themeToggle");
+
+    const tempBar = document.getElementById("tempBar");
+    const humBar = document.getElementById("humBar");
+    const moistBar = document.getElementById("moistBar");
+
+    // arrays for averages + history
+    const tempArr = [], humArr = [], moistArr = [];
+
+    // JustGage gauges
+    const tempGauge = new JustGage({
+      id: "tempGauge", value: 0, min: 0, max: 60, symbol: "°C",
+      gaugeWidthScale: 0.6, counter: true, levelColors: ["#00ff99", "#ffff33", "#ff3333"]
+    });
+    const humGauge = new JustGage({
+      id: "humGauge", value: 0, min: 0, max: 100, symbol: "%",
+      gaugeWidthScale: 0.6, counter: true, levelColors: ["#33ccff", "#0099ff", "#0044ff"]
+    });
+    const moistGauge = new JustGage({
+      id: "moistureGauge", value: 0, min: 0, max: 100, symbol: "%",
+      gaugeWidthScale: 0.6, counter: true, levelColors: ["#ffcc00", "#00cc66", "#007700"]
+    });
+
+    // Chart.js line chart
+    const ctx = document.getElementById("dataChart").getContext("2d");
+    const chart = new Chart(ctx, {
+      type: "line",
+      data: {
+        labels: [],
+        datasets: [
+          { label: "Temp (°C)", data: [], borderColor: "#ff6666", backgroundColor: "rgba(255,102,102,0.2)", fill: true, tension: 0.4 },
+          { label: "Humidity (%)", data: [], borderColor: "#00ffff", backgroundColor: "rgba(0,255,255,0.2)", fill: true, tension: 0.4 },
+          { label: "Moisture (%)", data: [], borderColor: "#00ff66", backgroundColor: "rgba(0,255,102,0.2)", fill: true, tension: 0.4 }
+        ]
+      },
+      options: {
+        responsive: true,
+        scales: {
+          x: { ticks: { color: "#fff" }, grid: { color: "rgba(255,255,255,0.2)" } },
+          y: { beginAtZero: true, ticks: { color: "#fff" }, grid: { color: "rgba(255,255,255,0.2)" } }
+        },
+        plugins: { legend: { labels: { color: "#fff" } } }
+      }
+    });
+
+    // helper: compute average
+    function avg(arr) {
+      if (!arr.length) return "--";
+      return (arr.reduce((a,b)=>a+b,0)/arr.length).toFixed(1);
+    }
+
+    // fetch + update UI
+    async function updateData() {
+      try {
+        const [tempRes, humRes, moistRes, fanRes] = await Promise.all([
+          fetch(`https://blynk.cloud/external/api/get?token=${token}&V0`),
+          fetch(`https://blynk.cloud/external/api/get?token=${token}&V1`),
+          fetch(`https://blynk.cloud/external/api/get?token=${token}&V3`),
+          fetch(`https://blynk.cloud/external/api/get?token=${token}&V2`)
+        ]);
+
+        statusBadge.textContent = "✅ Connected";
+        statusBadge.style.background = "#00aa66";
+
+        const temp = parseFloat(await tempRes.text());
+        const hum = parseFloat(await humRes.text());
+        const moist = parseFloat(await moistRes.text());
+        const fan = await fanRes.text();
+
+        if (!isNaN(temp)) tempVal.textContent = temp;
+        if (!isNaN(hum)) humVal.textContent = hum;
+        if (!isNaN(moist)) moistVal.textContent = moist;
+
+        tempGauge.refresh(temp);
+        humGauge.refresh(hum);
+        moistGauge.refresh(moist);
+
+        // progress bars
+        tempBar.style.width = Math.min(Math.max(temp * 1.6, 0), 100) + "%";
+        humBar.style.width = Math.min(Math.max(hum, 0), 100) + "%";
+        moistBar.style.width = Math.min(Math.max(moist, 0), 100) + "%";
+
+        // dynamic colors
+        tempVal.style.color = temp > 31 ? "#ff3333" : temp < 20 ? "#00ffff" : "#ffffff";
+        humVal.style.color = hum < 40 ? "#ffcc00" : "#ffffff";
+        moistVal.style.color = moist < 40 ? "#ffcc00" : "#00ff99";
+
+        // Alerts
+        if (temp > 35) {
+          alertBox.textContent = "🔥 High Temperature Detected!";
+          alertBox.style.background = "#ff3333";
+        } else if (moist < 35) {
+          alertBox.textContent = "🌱 Dry!";
+          alertBox.style.background = "#ffaa00";
+        } else {
+          alertBox.textContent = "✅ All Systems Normal";
+          alertBox.style.background = "#00aa66";
+        }
+
+        // Fan status + animation
+        if (fan === "1") {
+          fanStatus.textContent = "🌀 Fan ON";
+          fanStatus.classList.remove("off");
+          fanStatus.classList.add("on");
+          fanIcon.classList.add("fan-rotating");
+        } else {
+          fanStatus.textContent = "🛑 Fan OFF";
+          fanStatus.classList.remove("on");
+          fanStatus.classList.add("off");
+          fanIcon.classList.remove("fan-rotating");
+        }
+
+        const now = new Date().toLocaleTimeString();
+        lastUpdated.textContent = "Last updated: " + now;
+
+        // push to chart
+        chart.data.labels.push(now);
+        chart.data.datasets[0].data.push(temp);
+        chart.data.datasets[1].data.push(hum);
+        chart.data.datasets[2].data.push(moist);
+
+        // keep recent 50 points to make CSV/PDF useful
+        if (chart.data.labels.length > 50) {
+          chart.data.labels.shift();
+          chart.data.datasets.forEach(ds => ds.data.shift());
+        }
+        chart.update();
+
+        // keep arrays for averages
+        tempArr.push(temp); humArr.push(hum); moistArr.push(moist);
+        if (tempArr.length > 50) { tempArr.shift(); humArr.shift(); moistArr.shift(); }
+        document.getElementById("avgTemp").textContent = avg(tempArr);
+        document.getElementById("avgHum").textContent = avg(humArr);
+        document.getElementById("avgMoist").textContent = avg(moistArr);
+
+      } catch (err) {
+        statusBadge.textContent = "⚠️ Connection Error";
+        statusBadge.style.background = "#aa0000";
+        console.error("❌ Error:", err);
+      }
+    }
+
+    // toggle fan control (sends command to Blynk)
+    async function toggleFan(state) {
+      const value = state ? 1 : 0;
+      try {
+        await fetch(`https://blynk.cloud/external/api/update?token=${token}&V2=${value}`);
+        // optimistic UI update
+        updateData();
+      } catch (e) {
+        console.error("Fan toggle failed", e);
+      }
+    }
+
+    // Theme toggle
+    themeToggle.onclick = () => {
+      document.body.classList.toggle("light");
+      themeToggle.textContent = document.body.classList.contains("light") ? "☀️" : "🌙";
+    };
+
+    // ------------ Download functions (CSV + PDF) ------------
+
+    // CSV: build CSV from chart data, include header metadata rows
+    function downloadCSV() {
+      try {
+        const now = new Date();
+        const meta = [
+          ["ESP32 IoT Dashboard Report"],
+          ["Generated At:", now.toLocaleString()],
+          ["Avg Temp (°C):", document.getElementById("avgTemp").textContent],
+          ["Avg Humidity (%):", document.getElementById("avgHum").textContent],
+          ["Avg Moisture (%):", document.getElementById("avgMoist").textContent],
+          []
+        ];
+
+        const header = ["Time", "Temperature (°C)", "Humidity (%)", "Moisture (%)"];
+        const rows = chart.data.labels.map((label, i) => {
+          const t = chart.data.datasets[0].data[i] ?? "";
+          const h = chart.data.datasets[1].data[i] ?? "";
+          const m = chart.data.datasets[2].data[i] ?? "";
+          return [label, t, h, m];
+        });
+
+        // Combine meta + header + rows
+        const csvArray = [...meta, header, ...rows];
+        const csvContent = csvArray.map(r => r.map(cell => {
+          // escape quotes and commas
+          if (cell === null || cell === undefined) return "";
+          const str = String(cell);
+          if (str.includes(",") || str.includes("\"") || str.includes("\n")) {
+            return `"${str.replace(/"/g, '""')}"`;
+          }
+          return str;
+        }).join(",")).join("\n");
+
+        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `iot_report_${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()}_${now.getHours()}${now.getMinutes()}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      } catch (e) {
+        console.error("CSV download failed:", e);
+      }
+    }
+
+    // PDF: use jsPDF to create a simple report (meta + averages + recent table)
+    async function downloadPDF() {
+      try {
+        const now = new Date();
+        // get jsPDF from UMD
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF({ unit: "pt", format: "a4" });
+        const left = 40;
+        let y = 50;
+        doc.setFontSize(16);
+        doc.text("ESP32 IoT Dashboard Report", left, y);
+        doc.setFontSize(10);
+        y += 20;
+        doc.text(`Generated At: ${now.toLocaleString()}`, left, y);
+        y += 16;
+        doc.text(`Average Temperature (°C): ${document.getElementById("avgTemp").textContent}`, left, y);
+        y += 14;
+        doc.text(`Average Humidity (%): ${document.getElementById("avgHum").textContent}`, left, y);
+        y += 14;
+        doc.text(`Average Moisture (%): ${document.getElementById("avgMoist").textContent}`, left, y);
+        y += 20;
+
+        // Add a small note about status/alert
+        const alertText = alertBox.textContent || "";
+        doc.text(`System Status: ${alertText}`, left, y);
+        y += 20;
+
+        // Table header
+        doc.setFontSize(11);
+        doc.text("Recent Readings (Time | Temp °C | Humidity % | Moisture %)", left, y);
+        y += 14;
+        doc.setFontSize(9);
+
+        // Prepare rows - take last up to 20 entries
+        const labels = chart.data.labels.slice(-20);
+        const tData = chart.data.datasets[0].data.slice(-20);
+        const hData = chart.data.datasets[1].data.slice(-20);
+        const mData = chart.data.datasets[2].data.slice(-20);
+
+        // If none, add a placeholder
+        if (!labels.length) {
+          doc.text("No recent data available.", left, y);
+          y += 14;
+        } else {
+          // Table rows
+          const maxWidth = doc.internal.pageSize.width - left - 40; // margin
+          for (let i = 0; i < labels.length; i++) {
+            const line = `${labels[i]} | ${tData[i] ?? ""} | ${hData[i] ?? ""} | ${mData[i] ?? ""}`;
+            // wrap if necessary
+            const split = doc.splitTextToSize(line, maxWidth);
+            doc.text(split, left, y);
+            y += split.length * 12;
+            // new page if overflow
+            if (y > doc.internal.pageSize.height - 60) {
+              doc.addPage();
+              y = 50;
+            }
+          }
+        }
+
+        // Footer
+        const footerText = `Generated by ESP32 Smart IoT Dashboard PRO`;
+        doc.setFontSize(9);
+        doc.text(footerText, left, doc.internal.pageSize.height - 30);
+
+        const filename = `iot_report_${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()}_${now.getHours()}${now.getMinutes()}.pdf`;
+        doc.save(filename);
+      } catch (e) {
+        console.error("PDF download failed:", e);
+      }
+    }
+
+    // auto update interval
+    setInterval(updateData, 3000);
+    // initial call
+    updateData();
+  </script>
+</body>
+</html>
