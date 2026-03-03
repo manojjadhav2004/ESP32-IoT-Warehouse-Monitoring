@@ -2,200 +2,740 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>ESP32 Smart IoT Dashboard PRO</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ESP32 Smart IoT Dashboard</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/justgage"></script>
   <script src="https://cdn.jsdelivr.net/npm/raphael"></script>
-  <!-- jsPDF for PDF report -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.7.0/dist/tf.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
   <style>
-    * { font-family: "Poppins", sans-serif; box-sizing: border-box; }
-    body {
-      background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
-      background-size: 600% 600%;
-      animation: bgshift 25s ease infinite;
-      color: #fff;
-      text-align: center;
+    * {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      box-sizing: border-box;
       margin: 0;
-      padding: 20px;
+      padding: 0;
+    }
+
+    body {
+      background: linear-gradient(135deg, #0a0e27 0%, #1a1f3a 50%, #0d1429 100%);
+      color: #fff;
       min-height: 100vh;
-      transition: 0.4s;
+      padding: 20px;
+      overflow-x: hidden;
     }
-    @keyframes bgshift {
-      0% { background-position: 0% 50%; }
-      50% { background-position: 100% 50%; }
-      100% { background-position: 0% 50%; }
+
+    /* Header */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 30px;
+      padding: 20px 30px;
+      background: rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(10px);
+      border-radius: 20px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 8px 32px rgba(0, 188, 212, 0.1);
     }
-    h1 {
-      font-size: 32px;
-      text-shadow: 0 0 20px #00ffff;
-      margin-bottom: 10px;
+
+    .header-left h1 {
+      font-size: 28px;
+      font-weight: 700;
+      background: linear-gradient(135deg, #00bcd4 0%, #4dd0e1 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 5px;
     }
-    #themeToggle {
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      background: #00ffff;
-      border: none;
+
+    .status-indicator {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: #4dd0e1;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
       border-radius: 50%;
-      padding: 10px;
+      background: #4dd0e1;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; box-shadow: 0 0 8px #4dd0e1; }
+      50% { opacity: 0.6; box-shadow: 0 0 4px #4dd0e1; }
+    }
+
+    .header-right {
+      display: flex;
+      gap: 15px;
+      align-items: center;
+    }
+
+    .theme-toggle, .info-btn {
+      background: rgba(77, 208, 225, 0.2);
+      border: 1px solid #4dd0e1;
+      color: #4dd0e1;
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
       cursor: pointer;
+      font-size: 18px;
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .theme-toggle:hover, .info-btn:hover {
+      background: rgba(77, 208, 225, 0.3);
+      transform: scale(1.1);
+    }
+
+    /* Alert Box */
+    .alert-container {
+      margin-bottom: 20px;
+      padding: 16px 20px;
+      border-radius: 15px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 600;
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      animation: slideDown 0.5s ease;
+    }
+
+    @keyframes slideDown {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .alert-container.success {
+      background: rgba(76, 175, 80, 0.15);
+      border-color: #4caf50;
+      color: #81c784;
+    }
+
+    .alert-container.warning {
+      background: rgba(255, 152, 0, 0.15);
+      border-color: #ff9800;
+      color: #ffb74d;
+    }
+
+    .alert-container.danger {
+      background: rgba(244, 67, 54, 0.15);
+      border-color: #f44336;
+      color: #ef5350;
+    }
+
+    .alert-icon {
       font-size: 20px;
     }
-    #alertBox {
-      padding: 8px 14px;
-      border-radius: 8px;
-      margin: 10px auto;
-      width: max-content;
-      background: #00aa66;
-      font-weight: bold;
-      transition: 0.3s;
+
+    /* Main Container */
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
     }
-    #statusBadge {
-      padding: 6px 12px;
-      border-radius: 8px;
-      background: #555;
-      width: max-content;
-      margin: 10px auto 20px;
-    }
-    .dashboard {
+
+    /* Grid Layout */
+    .dashboard-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
       gap: 20px;
-      width: 90%;
-      max-width: 1200px;
-      margin: auto;
+      margin-bottom: 30px;
     }
+
+    /* Card Styles */
     .card {
-      background: rgba(255, 255, 255, 0.1);
-      border-radius: 15px;
-      padding: 20px;
-      box-shadow: 0 0 15px rgba(0, 255, 255, 0.2);
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.04) 100%);
       backdrop-filter: blur(10px);
+      border: 1px solid rgba(77, 208, 225, 0.2);
+      border-radius: 20px;
+      padding: 25px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+      transition: all 0.4s cubic-bezier(0.23, 1, 0.320, 1);
       position: relative;
-      transition: 0.3s;
-    }
-    .card:hover { transform: translateY(-3px); box-shadow: 0 0 20px rgba(0,255,255,0.4); }
-    .progress {
-      width: 100%;
-      height: 10px;
-      background: rgba(255,255,255,0.15);
-      border-radius: 10px;
-      margin-top: 8px;
       overflow: hidden;
     }
-    .bar {
-      height: 100%;
-      width: 0%;
-      background: linear-gradient(90deg, #00ff99, #ff3333);
-      transition: width 0.5s ease;
-    }
-    .on { background: #00ff99; color: #000; }
-    .off { background: #ff3b3b; }
-    button {
-      border: none;
-      padding: 10px 15px;
-      margin-top: 10px;
-      border-radius: 8px;
-      background: #00ffff;
-      color: #000;
-      font-weight: bold;
-      cursor: pointer;
-      transition: 0.2s ease;
-    }
-    button:hover { background: #00ffaa; transform: scale(1.05); }
-    .download-group { display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-top:10px; }
-    footer { margin-top: 25px; font-size: 13px; opacity: 0.6; }
 
-    /* Fan Animation */
-    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-    .fan-rotating { animation: spin 1s linear infinite; transform-origin: center; }
+    .card:hover {
+      transform: translateY(-8px);
+      border-color: #4dd0e1;
+      box-shadow: 0 12px 48px rgba(77, 208, 225, 0.2);
+    }
+
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(77, 208, 225, 0.1), transparent);
+      transition: left 0.5s;
+    }
+
+    .card:hover::before {
+      left: 100%;
+    }
+
+    .card-title {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 15px;
+      color: #4dd0e1;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .card-value {
+      font-size: 36px;
+      font-weight: 700;
+      margin: 15px 0;
+      background: linear-gradient(135deg, #00bcd4, #4dd0e1);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .card-unit {
+      font-size: 14px;
+      color: #90caf9;
+      opacity: 0.8;
+    }
+
+    .progress-bar {
+      width: 100%;
+      height: 8px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 10px;
+      margin-top: 12px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #4dd0e1, #00bcd4);
+      border-radius: 10px;
+      transition: width 0.6s cubic-bezier(0.23, 1, 0.320, 1);
+      box-shadow: 0 0 15px rgba(77, 208, 225, 0.5);
+    }
+
+    /* Fan Control */
+    .fan-control {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .fan-icon {
+      width: 80px;
+      height: 80px;
+      margin: 15px 0;
+      animation: none;
+      transition: animation 0.3s ease;
+    }
+
+    .fan-icon.rotating {
+      animation: spin 2s linear infinite;
+    }
+
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    .fan-status {
+      font-size: 18px;
+      font-weight: 700;
+      padding: 8px 16px;
+      border-radius: 12px;
+      margin: 12px 0;
+      text-align: center;
+      transition: all 0.3s ease;
+    }
+
+    .fan-status.active {
+      background: rgba(76, 175, 80, 0.2);
+      color: #4caf50;
+      border: 1px solid #4caf50;
+    }
+
+    .fan-status.inactive {
+      background: rgba(244, 67, 54, 0.2);
+      color: #f44336;
+      border: 1px solid #f44336;
+    }
+
+    .button-group {
+      display: flex;
+      gap: 10px;
+      margin-top: 12px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    /* Buttons */
+    .btn {
+      padding: 10px 16px;
+      border: none;
+      border-radius: 10px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #4dd0e1, #00bcd4);
+      color: #000;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(77, 208, 225, 0.4);
+    }
+
+    .btn-secondary {
+      background: rgba(77, 208, 225, 0.2);
+      color: #4dd0e1;
+      border: 1px solid #4dd0e1;
+    }
+
+    .btn-secondary:hover {
+      background: rgba(77, 208, 225, 0.3);
+      box-shadow: 0 4px 12px rgba(77, 208, 225, 0.2);
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* Gauge Container */
+    .gauge-container {
+      display: flex;
+      justify-content: center;
+      margin: 10px 0;
+    }
+
+    /* Section */
+    .section {
+      margin-bottom: 30px;
+    }
+
+    .section-title {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 15px;
+      color: #4dd0e1;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    /* Chart Card */
+    .chart-card {
+      grid-column: 1 / -1;
+    }
+
+    /* Summary Grid */
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+      margin-bottom: 10px;
+    }
+
+    .summary-item {
+      background: rgba(77, 208, 225, 0.1);
+      padding: 15px;
+      border-radius: 12px;
+      border-left: 3px solid #4dd0e1;
+    }
+
+    .summary-label {
+      font-size: 12px;
+      color: #90caf9;
+      text-transform: uppercase;
+      margin-bottom: 5px;
+    }
+
+    .summary-value {
+      font-size: 24px;
+      font-weight: 700;
+      color: #4dd0e1;
+    }
+
+    /* ML Section */
+    .ml-section {
+      grid-column: 1 / -1;
+    }
+
+    .risk-meter {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      margin: 20px 0;
+    }
+
+    .risk-circle {
+      width: 100px;
+      height: 100px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 32px;
+      font-weight: 700;
+      border: 3px solid;
+      transition: all 0.3s ease;
+    }
+
+    .risk-circle.safe {
+      background: rgba(76, 175, 80, 0.15);
+      border-color: #4caf50;
+      color: #4caf50;
+    }
+
+    .risk-circle.warning {
+      background: rgba(255, 152, 0, 0.15);
+      border-color: #ff9800;
+      color: #ffb74d;
+    }
+
+    .risk-circle.danger {
+      background: rgba(244, 67, 54, 0.15);
+      border-color: #f44336;
+      color: #ef5350;
+    }
+
+    .risk-info {
+      flex: 1;
+    }
+
+    .risk-status {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 5px;
+    }
+
+    .risk-details {
+      font-size: 13px;
+      color: #90caf9;
+      line-height: 1.5;
+    }
+
+    .actions-list {
+      margin-top: 15px;
+    }
+
+    .actions-list li {
+      padding: 8px 0;
+      padding-left: 20px;
+      position: relative;
+      font-size: 13px;
+      color: #90caf9;
+      line-height: 1.6;
+    }
+
+    .actions-list li::before {
+      content: '✓';
+      position: absolute;
+      left: 0;
+      color: #4caf50;
+      font-weight: 700;
+    }
+
+    .threshold-control {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      margin: 15px 0;
+      padding: 15px;
+      background: rgba(77, 208, 225, 0.08);
+      border-radius: 12px;
+    }
+
+    .threshold-control label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+    }
+
+    .threshold-control input[type="range"] {
+      flex: 1;
+      cursor: pointer;
+      height: 6px;
+      border-radius: 3px;
+      background: rgba(77, 208, 225, 0.2);
+      outline: none;
+      -webkit-appearance: none;
+    }
+
+    .threshold-control input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #4dd0e1;
+      cursor: pointer;
+      box-shadow: 0 0 10px rgba(77, 208, 225, 0.5);
+    }
+
+    .threshold-control input[type="range"]::-moz-range-thumb {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #4dd0e1;
+      cursor: pointer;
+      border: none;
+      box-shadow: 0 0 10px rgba(77, 208, 225, 0.5);
+    }
+
+    /* Footer */
+    footer {
+      text-align: center;
+      padding: 20px;
+      color: #90caf9;
+      font-size: 12px;
+      margin-top: 30px;
+      opacity: 0.7;
+    }
 
     /* Light Theme */
     body.light {
-      background: #f5f5f5;
-      color: #000;
+      background: linear-gradient(135deg, #f5f7fa 0%, #e8ecf1 50%, #f0f4f8 100%);
+      color: #333;
     }
+
     body.light .card {
-      background: rgba(0, 0, 0, 0.05);
-      color: #000;
-      box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
+      background: rgba(255, 255, 255, 0.7);
+      border-color: rgba(76, 175, 80, 0.3);
     }
-    body.light #themeToggle { background: #111; color: #fff; }
-    @media (max-width: 600px) {
-      .dashboard { grid-template-columns: 1fr; }
-      h1 { font-size: 24px; }
+
+    body.light .card-title,
+    body.light .section-title {
+      color: #00897b;
+    }
+
+    body.light .card-value {
+      background: linear-gradient(135deg, #00897b, #26a69a);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    body.light header {
+      background: rgba(0, 0, 0, 0.05);
+      border-color: rgba(0, 0, 0, 0.1);
+    }
+
+    body.light .header-left h1 {
+      background: linear-gradient(135deg, #00897b, #26a69a);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      header {
+        flex-direction: column;
+        gap: 15px;
+      }
+
+      .header-right {
+        width: 100%;
+        justify-content: center;
+      }
+
+      .dashboard-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .summary-grid {
+        grid-template-columns: 1fr;
+      }
     }
   </style>
 </head>
 <body>
-  <h1>🌡 Temperature And Humidity Monitoring System Dashboard </h1>
-  <button id="themeToggle">🌙</button>
-  <div id="alertBox">✅ All Systems Normal</div>
-  <div id="statusBadge">Connecting...</div>
+  <!-- Header -->
+  <header>
+    <div class="header-left">
+      <h1>📊 Smart IoT Dashboard</h1>
+      <div class="status-indicator">
+        <span class="status-dot"></span>
+        <span id="connectionStatus">Connecting...</span>
+      </div>
+    </div>
+    <div class="header-right">
+      <button class="info-btn" title="Information">ℹ️</button>
+      <button class="theme-toggle" id="themeToggle" title="Toggle Theme">🌙</button>
+    </div>
+  </header>
 
-  <div class="dashboard">
-    <div class="card">
-      <h2>🌡 Temperature</h2>
-      <div id="tempGauge" style="width:200px; height:160px; margin:auto;"></div>
-      <p><span id="tempValue">--</span> °C</p>
-      <div class="progress"><div id="tempBar" class="bar"></div></div>
+  <div class="container">
+    <!-- Alert -->
+    <div id="alertBox" class="alert-container success">
+      <span class="alert-icon">✅</span>
+      <span>All Systems Normal</span>
     </div>
 
-    <div class="card">
-      <h2>💧 Humidity</h2>
-      <div id="humGauge" style="width:200px; height:160px; margin:auto;"></div>
-      <p><span id="humValue">--</span> %</p>
-      <div class="progress"><div id="humBar" class="bar"></div></div>
-    </div>
+    <!-- Sensor Cards -->
+    <div class="dashboard-grid">
+      <!-- Temperature Card -->
+      <div class="card">
+        <div class="card-title">🌡️ Temperature</div>
+        <div class="gauge-container">
+          <div id="tempGauge" style="width:150px; height:120px;"></div>
+        </div>
+        <div style="text-align: center;">
+          <div class="card-value"><span id="tempValue">--</span><span class="card-unit">°C</span></div>
+        </div>
+        <div class="progress-bar">
+          <div id="tempBar" class="progress-fill"></div>
+        </div>
+      </div>
 
-    <div class="card">
-      <h2>🌱 Warehouse Moisture</h2>
-      <div id="moistureGauge" style="width:200px; height:160px; margin:auto;"></div>
-      <p><span id="moistureValue">--</span> %</p>
-      <div class="progress"><div id="moistBar" class="bar"></div></div>
-    </div>
+      <!-- Humidity Card -->
+      <div class="card">
+        <div class="card-title">💧 Humidity</div>
+        <div class="gauge-container">
+          <div id="humGauge" style="width:150px; height:120px;"></div>
+        </div>
+        <div style="text-align: center;">
+          <div class="card-value"><span id="humValue">--</span><span class="card-unit">%</span></div>
+        </div>
+        <div class="progress-bar">
+          <div id="humBar" class="progress-fill"></div>
+        </div>
+      </div>
 
-    <div class="card">
-      <h2>🌀 Fan Control</h2>
-      <svg id="fanIcon" width="70" height="70" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="margin-top:10px;">
-        <path d="M12 12m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" fill="#00ffcc"/>
-        <path d="M12 12l8 -2.5l-1 3.5l-7 2.5z" fill="#00ffcc"/>
-        <path d="M12 12l-5 7l-1.5 -3l6.5 -4z" fill="#00ffcc"/>
-        <path d="M12 12l-4 -8l3 1l1 7z" fill="#00ffcc"/>
-      </svg>
-      <div id="fanStatus" class="off">🛑 Fan OFF</div>
-      <button onclick="toggleFan(true)">Turn ON</button>
-      <button onclick="toggleFan(false)">Turn OFF</button>
-      <p id="lastUpdated">Last updated: --</p>
+      <!-- Moisture Card -->
+      <div class="card">
+        <div class="card-title">🌱 Moisture</div>
+        <div class="gauge-container">
+          <div id="moistureGauge" style="width:150px; height:120px;"></div>
+        </div>
+        <div style="text-align: center;">
+          <div class="card-value"><span id="moistureValue">--</span><span class="card-unit">%</span></div>
+        </div>
+        <div class="progress-bar">
+          <div id="moistBar" class="progress-fill"></div>
+        </div>
+      </div>
+
+      <!-- Fan Control Card -->
+      <div class="card fan-control">
+        <div class="card-title">🌀 Fan Control</div>
+        <svg id="fanIcon" class="fan-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 12m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" fill="#4dd0e1"/>
+          <path d="M12 12l8 -2.5l-1 3.5l-7 2.5z" fill="#4dd0e1"/>
+          <path d="M12 12l-5 7l-1.5 -3l6.5 -4z" fill="#4dd0e1"/>
+          <path d="M12 12l-4 -8l3 1l1 7z" fill="#4dd0e1"/>
+        </svg>
+        <div id="fanStatus" class="fan-status inactive">🛑 Fan OFF</div>
+        <div class="button-group">
+          <button class="btn btn-primary" onclick="toggleFan(true)">Turn ON</button>
+          <button class="btn btn-secondary" onclick="toggleFan(false)">Turn OFF</button>
+        </div>
+        <p id="lastUpdated" style="font-size: 12px; color: #90caf9; margin-top: 12px;">Last updated: --</p>
+      </div>
+
+      <!-- Chart Card -->
+      <div class="card chart-card">
+        <div class="card-title">📈 Live Sensor Data</div>
+        <canvas id="dataChart" height="80"></canvas>
+        <div class="button-group" style="margin-top: 15px;">
+          <button class="btn btn-primary" onclick="downloadCSV()">📥 CSV Export</button>
+          <button class="btn btn-primary" onclick="downloadPDF()">📄 PDF Report</button>
+        </div>
+      </div>
+
+      <!-- Summary Section -->
+      <div class="card chart-card">
+        <div class="card-title">📊 System Statistics</div>
+        <div class="summary-grid">
+          <div class="summary-item">
+            <div class="summary-label">Avg Temperature</div>
+            <div class="summary-value"><span id="avgTemp">--</span>°C</div>
+          </div>
+          <div class="summary-item">
+            <div class="summary-label">Avg Humidity</div>
+            <div class="summary-value"><span id="avgHum">--</span>%</div>
+          </div>
+          <div class="summary-item">
+            <div class="summary-label">Avg Moisture</div>
+            <div class="summary-value"><span id="avgMoist">--</span>%</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ML Prediction Card -->
+      <div class="card ml-section">
+        <div class="card-title">🤖 AI Risk Analysis</div>
+        <div class="risk-meter">
+          <div id="riskCircle" class="risk-circle safe">
+            <span id="riskScore">--</span>
+          </div>
+          <div class="risk-info">
+            <div id="riskStatus" class="risk-status">Status: Analyzing...</div>
+            <div id="riskVerdict" class="risk-details">Prediction: Model training...</div>
+          </div>
+        </div>
+
+        <div id="predictionReason" style="background: rgba(77, 208, 225, 0.1); padding: 12px; border-radius: 10px; margin: 12px 0; font-size: 13px;">
+          Reason: --
+        </div>
+
+        <ul id="predictionActions" class="actions-list"></ul>
+
+        <div class="threshold-control">
+          <label>Alert Threshold:</label>
+          <input id="thresholdSlider" type="range" min="0" max="100" step="1" value="60" />
+          <span style="min-width: 40px;"><span id="thresholdVal">60</span>%</span>
+          <label style="margin-left: 15px;">
+            <input id="autoPredict" type="checkbox" />
+            Auto Predict
+          </label>
+        </div>
+
+        <div class="button-group">
+          <button class="btn btn-primary" id="trainModelBtn">🧠 Train Model</button>
+          <button class="btn btn-primary" id="predictBtn">🔮 Predict Now</button>
+          <button class="btn btn-secondary" id="downloadPredPdf">📄 Prediction PDF</button>
+        </div>
+
+        <p id="modelStatus" style="margin-top: 12px; font-size: 12px; color: #90caf9;">Model: Not trained</p>
+      </div>
     </div>
   </div>
 
-  <div class="card" style="margin-top:25px; width:90%; max-width:900px;">
-    <h2>📊 Live Sensor Data</h2>
-    <canvas id="dataChart" height="180"></canvas>
-
-    <div class="download-group">
-      <button onclick="downloadCSV()">📥 Download CSV</button>
-      <button onclick="downloadPDF()">📄 Download PDF Report</button>
-    </div>
-  </div>
-
-  <div class="card" style="margin-top:25px;">
-    <h2>📈 System Summary</h2>
-    <p>Avg Temp: <span id="avgTemp">--</span> °C</p>
-    <p>Avg Humidity: <span id="avgHum">--</span> %</p>
-    <p>Avg Moisture: <span id="avgMoist">--</span> %</p>
-  </div>
-
-  <footer>Made by Manoj ⚡ ESP32 + DHT11 + Warehouse Moisture + Blynk IoT</footer>
+  <footer>
+    Made by Manoj ⚡ | ESP32 + DHT11 + Warehouse Moisture + Blynk IoT | © 2024
+  </footer>
 
   <script>
-    // Blynk token
     const token = "mlE1Ig9YvQOfKEA1OX3CSYsoLEzI7nF6";
 
-    // Elements
+    // DOM Elements
     const tempVal = document.getElementById("tempValue");
     const humVal = document.getElementById("humValue");
     const moistVal = document.getElementById("moistureValue");
@@ -203,59 +743,55 @@
     const fanIcon = document.getElementById("fanIcon");
     const lastUpdated = document.getElementById("lastUpdated");
     const alertBox = document.getElementById("alertBox");
-    const statusBadge = document.getElementById("statusBadge");
+    const connectionStatus = document.getElementById("connectionStatus");
     const themeToggle = document.getElementById("themeToggle");
-
     const tempBar = document.getElementById("tempBar");
     const humBar = document.getElementById("humBar");
     const moistBar = document.getElementById("moistBar");
 
-    // arrays for averages + history
     const tempArr = [], humArr = [], moistArr = [];
 
-    // JustGage gauges
+    // JustGage Gauges
     const tempGauge = new JustGage({
       id: "tempGauge", value: 0, min: 0, max: 60, symbol: "°C",
-      gaugeWidthScale: 0.6, counter: true, levelColors: ["#00ff99", "#ffff33", "#ff3333"]
+      gaugeWidthScale: 0.6, counter: true, levelColors: ["#4caf50", "#ffb74d", "#ef5350"]
     });
     const humGauge = new JustGage({
       id: "humGauge", value: 0, min: 0, max: 100, symbol: "%",
-      gaugeWidthScale: 0.6, counter: true, levelColors: ["#33ccff", "#0099ff", "#0044ff"]
+      gaugeWidthScale: 0.6, counter: true, levelColors: ["#ffb74d", "#4caf50", "#4caf50"]
     });
     const moistGauge = new JustGage({
       id: "moistureGauge", value: 0, min: 0, max: 100, symbol: "%",
-      gaugeWidthScale: 0.6, counter: true, levelColors: ["#ffcc00", "#00cc66", "#007700"]
+      gaugeWidthScale: 0.6, counter: true, levelColors: ["#ffb74d", "#4caf50", "#81c784"]
     });
 
-    // Chart.js line chart
+    // Chart.js
     const ctx = document.getElementById("dataChart").getContext("2d");
     const chart = new Chart(ctx, {
       type: "line",
       data: {
         labels: [],
         datasets: [
-          { label: "Temp (°C)", data: [], borderColor: "#ff6666", backgroundColor: "rgba(255,102,102,0.2)", fill: true, tension: 0.4 },
-          { label: "Humidity (%)", data: [], borderColor: "#00ffff", backgroundColor: "rgba(0,255,255,0.2)", fill: true, tension: 0.4 },
-          { label: "Moisture (%)", data: [], borderColor: "#00ff66", backgroundColor: "rgba(0,255,102,0.2)", fill: true, tension: 0.4 }
+          { label: "Temp (°C)", data: [], borderColor: "#ef5350", backgroundColor: "rgba(239,83,80,0.1)", fill: true, tension: 0.4, borderWidth: 2 },
+          { label: "Humidity (%)", data: [], borderColor: "#4dd0e1", backgroundColor: "rgba(77,208,225,0.1)", fill: true, tension: 0.4, borderWidth: 2 },
+          { label: "Moisture (%)", data: [], borderColor: "#4caf50", backgroundColor: "rgba(76,175,80,0.1)", fill: true, tension: 0.4, borderWidth: 2 }
         ]
       },
       options: {
         responsive: true,
+        maintainAspectRatio: true,
         scales: {
-          x: { ticks: { color: "#fff" }, grid: { color: "rgba(255,255,255,0.2)" } },
-          y: { beginAtZero: true, ticks: { color: "#fff" }, grid: { color: "rgba(255,255,255,0.2)" } }
+          x: { ticks: { color: "#90caf9" }, grid: { color: "rgba(255,255,255,0.05)" } },
+          y: { beginAtZero: true, ticks: { color: "#90caf9" }, grid: { color: "rgba(255,255,255,0.05)" } }
         },
-        plugins: { legend: { labels: { color: "#fff" } } }
+        plugins: { legend: { labels: { color: "#4dd0e1", font: { size: 12, weight: 600 } } } }
       }
     });
 
-    // helper: compute average
     function avg(arr) {
-      if (!arr.length) return "--";
-      return (arr.reduce((a,b)=>a+b,0)/arr.length).toFixed(1);
+      return arr.length ? (arr.reduce((a,b)=>a+b,0)/arr.length).toFixed(1) : "--";
     }
 
-    // fetch + update UI
     async function updateData() {
       try {
         const [tempRes, humRes, moistRes, fanRes] = await Promise.all([
@@ -265,8 +801,9 @@
           fetch(`https://blynk.cloud/external/api/get?token=${token}&V2`)
         ]);
 
-        statusBadge.textContent = "✅ Connected";
-        statusBadge.style.background = "#00aa66";
+        connectionStatus.textContent = "Connected";
+        alertBox.classList.remove("danger", "warning");
+        alertBox.classList.add("success");
 
         const temp = parseFloat(await tempRes.text());
         const hum = parseFloat(await humRes.text());
@@ -281,92 +818,87 @@
         humGauge.refresh(hum);
         moistGauge.refresh(moist);
 
-        // progress bars
         tempBar.style.width = Math.min(Math.max(temp * 1.6, 0), 100) + "%";
         humBar.style.width = Math.min(Math.max(hum, 0), 100) + "%";
         moistBar.style.width = Math.min(Math.max(moist, 0), 100) + "%";
 
-        // dynamic colors
-        tempVal.style.color = temp > 31 ? "#ff3333" : temp < 20 ? "#00ffff" : "#ffffff";
-        humVal.style.color = hum < 40 ? "#ffcc00" : "#ffffff";
-        moistVal.style.color = moist < 40 ? "#ffcc00" : "#00ff99";
-
-        // Alerts
         if (temp > 35) {
           alertBox.textContent = "🔥 High Temperature Detected!";
-          alertBox.style.background = "#ff3333";
+          alertBox.classList.remove("success", "warning");
+          alertBox.classList.add("danger");
         } else if (moist < 35) {
-          alertBox.textContent = "🌱 Dry!";
-          alertBox.style.background = "#ffaa00";
+          alertBox.textContent = "🌱 Warehouse Moisture Low!";
+          alertBox.classList.remove("success", "danger");
+          alertBox.classList.add("warning");
         } else {
           alertBox.textContent = "✅ All Systems Normal";
-          alertBox.style.background = "#00aa66";
+          alertBox.classList.remove("danger", "warning");
+          alertBox.classList.add("success");
         }
 
-        // Fan status + animation
         if (fan === "1") {
           fanStatus.textContent = "🌀 Fan ON";
-          fanStatus.classList.remove("off");
-          fanStatus.classList.add("on");
-          fanIcon.classList.add("fan-rotating");
+          fanStatus.classList.remove("inactive");
+          fanStatus.classList.add("active");
+          fanIcon.classList.add("rotating");
         } else {
           fanStatus.textContent = "🛑 Fan OFF";
-          fanStatus.classList.remove("on");
-          fanStatus.classList.add("off");
-          fanIcon.classList.remove("fan-rotating");
+          fanStatus.classList.remove("active");
+          fanStatus.classList.add("inactive");
+          fanIcon.classList.remove("rotating");
         }
 
         const now = new Date().toLocaleTimeString();
         lastUpdated.textContent = "Last updated: " + now;
 
-        // push to chart
         chart.data.labels.push(now);
         chart.data.datasets[0].data.push(temp);
         chart.data.datasets[1].data.push(hum);
         chart.data.datasets[2].data.push(moist);
 
-        // keep recent 50 points to make CSV/PDF useful
         if (chart.data.labels.length > 50) {
           chart.data.labels.shift();
           chart.data.datasets.forEach(ds => ds.data.shift());
         }
         chart.update();
 
-        // keep arrays for averages
         tempArr.push(temp); humArr.push(hum); moistArr.push(moist);
         if (tempArr.length > 50) { tempArr.shift(); humArr.shift(); moistArr.shift(); }
         document.getElementById("avgTemp").textContent = avg(tempArr);
         document.getElementById("avgHum").textContent = avg(humArr);
         document.getElementById("avgMoist").textContent = avg(moistArr);
 
+        if (autoPredictEl.checked && mlModel) {
+          predictRiskNow();
+        }
       } catch (err) {
-        statusBadge.textContent = "⚠️ Connection Error";
-        statusBadge.style.background = "#aa0000";
-        console.error("❌ Error:", err);
+        connectionStatus.textContent = "Connection Error";
+        console.error("Error:", err);
       }
     }
 
-    // toggle fan control (sends command to Blynk)
     async function toggleFan(state) {
       const value = state ? 1 : 0;
       try {
         await fetch(`https://blynk.cloud/external/api/update?token=${token}&V2=${value}`);
-        // optimistic UI update
         updateData();
       } catch (e) {
         console.error("Fan toggle failed", e);
       }
     }
 
-    // Theme toggle
     themeToggle.onclick = () => {
       document.body.classList.toggle("light");
       themeToggle.textContent = document.body.classList.contains("light") ? "☀️" : "🌙";
+      localStorage.setItem("theme", document.body.classList.contains("light") ? "light" : "dark");
     };
 
-    // ------------ Download functions (CSV + PDF) ------------
+    // Load theme
+    if (localStorage.getItem("theme") === "light") {
+      document.body.classList.add("light");
+      themeToggle.textContent = "☀️";
+    }
 
-    // CSV: build CSV from chart data, include header metadata rows
     function downloadCSV() {
       try {
         const now = new Date();
@@ -378,7 +910,6 @@
           ["Avg Moisture (%):", document.getElementById("avgMoist").textContent],
           []
         ];
-
         const header = ["Time", "Temperature (°C)", "Humidity (%)", "Moisture (%)"];
         const rows = chart.data.labels.map((label, i) => {
           const t = chart.data.datasets[0].data[i] ?? "";
@@ -386,24 +917,18 @@
           const m = chart.data.datasets[2].data[i] ?? "";
           return [label, t, h, m];
         });
-
-        // Combine meta + header + rows
         const csvArray = [...meta, header, ...rows];
         const csvContent = csvArray.map(r => r.map(cell => {
-          // escape quotes and commas
           if (cell === null || cell === undefined) return "";
           const str = String(cell);
-          if (str.includes(",") || str.includes("\"") || str.includes("\n")) {
-            return `"${str.replace(/"/g, '""')}"`;
-          }
+          if (str.includes(",") || str.includes("\"")) return `"${str.replace(/"/g, '""')}"`;
           return str;
         }).join(",")).join("\n");
-
-        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+        const blob = new Blob([csvContent], { type: "text/csv" });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `iot_report_${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()}_${now.getHours()}${now.getMinutes()}.csv`;
+        a.download = `iot_report_${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}.csv`;
         document.body.appendChild(a);
         a.click();
         a.remove();
@@ -413,11 +938,8 @@
       }
     }
 
-    // PDF: use jsPDF to create a simple report (meta + averages + recent table)
     async function downloadPDF() {
       try {
-        const now = new Date();
-        // get jsPDF from UMD
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF({ unit: "pt", format: "a4" });
         const left = 40;
@@ -426,69 +948,188 @@
         doc.text("ESP32 IoT Dashboard Report", left, y);
         doc.setFontSize(10);
         y += 20;
-        doc.text(`Generated At: ${now.toLocaleString()}`, left, y);
+        const now = new Date();
+        doc.text(`Generated: ${now.toLocaleString()}`, left, y);
         y += 16;
-        doc.text(`Average Temperature (°C): ${document.getElementById("avgTemp").textContent}`, left, y);
+        doc.text(`Avg Temp: ${document.getElementById("avgTemp").textContent}°C`, left, y);
         y += 14;
-        doc.text(`Average Humidity (%): ${document.getElementById("avgHum").textContent}`, left, y);
+        doc.text(`Avg Humidity: ${document.getElementById("avgHum").textContent}%`, left, y);
         y += 14;
-        doc.text(`Average Moisture (%): ${document.getElementById("avgMoist").textContent}`, left, y);
+        doc.text(`Avg Moisture: ${document.getElementById("avgMoist").textContent}%`, left, y);
         y += 20;
-
-        // Add a small note about status/alert
-        const alertText = alertBox.textContent || "";
-        doc.text(`System Status: ${alertText}`, left, y);
-        y += 20;
-
-        // Table header
-        doc.setFontSize(11);
-        doc.text("Recent Readings (Time | Temp °C | Humidity % | Moisture %)", left, y);
+        doc.text("Recent Readings", left, y);
         y += 14;
         doc.setFontSize(9);
-
-        // Prepare rows - take last up to 20 entries
         const labels = chart.data.labels.slice(-20);
         const tData = chart.data.datasets[0].data.slice(-20);
         const hData = chart.data.datasets[1].data.slice(-20);
         const mData = chart.data.datasets[2].data.slice(-20);
-
-        // If none, add a placeholder
-        if (!labels.length) {
-          doc.text("No recent data available.", left, y);
-          y += 14;
-        } else {
-          // Table rows
-          const maxWidth = doc.internal.pageSize.width - left - 40; // margin
-          for (let i = 0; i < labels.length; i++) {
-            const line = `${labels[i]} | ${tData[i] ?? ""} | ${hData[i] ?? ""} | ${mData[i] ?? ""}`;
-            // wrap if necessary
-            const split = doc.splitTextToSize(line, maxWidth);
-            doc.text(split, left, y);
-            y += split.length * 12;
-            // new page if overflow
+        if (labels.length) {
+          labels.forEach((label, i) => {
+            doc.text(`${label} | T:${tData[i] || ""} | H:${hData[i] || ""} | M:${mData[i] || ""}`, left, y);
+            y += 12;
             if (y > doc.internal.pageSize.height - 60) {
               doc.addPage();
               y = 50;
             }
-          }
+          });
         }
-
-        // Footer
-        const footerText = `Generated by ESP32 Smart IoT Dashboard PRO`;
-        doc.setFontSize(9);
-        doc.text(footerText, left, doc.internal.pageSize.height - 30);
-
-        const filename = `iot_report_${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()}_${now.getHours()}${now.getMinutes()}.pdf`;
-        doc.save(filename);
+        doc.save(`iot_report_${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}.pdf`);
       } catch (e) {
         console.error("PDF download failed:", e);
       }
     }
 
-    // auto update interval
     setInterval(updateData, 3000);
-    // initial call
     updateData();
+
+    // ML Prediction
+    let mlModel = null;
+    const modelStatus = document.getElementById('modelStatus');
+    const riskScoreEl = document.getElementById('riskScore');
+    const riskCircle = document.getElementById('riskCircle');
+    const riskStatus = document.getElementById('riskStatus');
+    const riskVerdict = document.getElementById('riskVerdict');
+    const trainBtn = document.getElementById('trainModelBtn');
+    const predictBtn = document.getElementById('predictBtn');
+    const downloadPredPdf = document.getElementById('downloadPredPdf');
+    const thresholdSlider = document.getElementById('thresholdSlider');
+    const thresholdVal = document.getElementById('thresholdVal');
+    const autoPredictEl = document.getElementById('autoPredict');
+    const predictionReason = document.getElementById('predictionReason');
+    const predictionActions = document.getElementById('predictionActions');
+
+    let alertThreshold = Number(localStorage.getItem('alertThreshold') || 60);
+    thresholdSlider.value = alertThreshold;
+    thresholdVal.textContent = alertThreshold + '%';
+    autoPredictEl.checked = (localStorage.getItem('autoPredict') === '1');
+
+    thresholdSlider.addEventListener('input', (e) => {
+      alertThreshold = Number(e.target.value);
+      thresholdVal.textContent = alertThreshold + '%';
+      localStorage.setItem('alertThreshold', String(alertThreshold));
+    });
+
+    autoPredictEl.addEventListener('change', (e) => {
+      localStorage.setItem('autoPredict', e.target.checked ? '1' : '0');
+    });
+
+    function createSyntheticData(n = 2000) {
+      const xs = [];
+      const ys = [];
+      for (let i = 0; i < n; i++) {
+        const temp = Math.round((Math.random() * 30) + 10 + (Math.random() < 0.2 ? 5 : 0));
+        const hum = Math.round((Math.random() * 60) + 20 + (temp > 30 ? 10 : 0));
+        const moist = Math.round((Math.random() * 80));
+        const tempRisk = temp > 30 ? 1 : 0;
+        const humRisk = hum > 70 ? 1 : 0;
+        const moistRisk = (moist < 25 || moist > 75) ? 1 : 0;
+        const riskScore = (tempRisk * 0.5) + (humRisk * 0.3) + (moistRisk * 0.2);
+        const label = Math.random() < riskScore ? 1 : 0;
+        xs.push([temp, hum, moist]);
+        ys.push(label);
+      }
+      return { xs: tf.tensor2d(xs), ys: tf.tensor2d(ys, [ys.length, 1]) };
+    }
+
+    async function buildAndTrainModel() {
+      trainBtn.disabled = true;
+      modelStatus.textContent = 'Model: training...';
+      const model = tf.sequential();
+      model.add(tf.layers.dense({ inputShape: [3], units: 16, activation: 'relu' }));
+      model.add(tf.layers.dense({ units: 8, activation: 'relu' }));
+      model.add(tf.layers.dense({ units: 1, activation: 'sigmoid' }));
+      model.compile({ optimizer: tf.train.adam(0.01), loss: 'binaryCrossentropy', metrics: ['accuracy'] });
+      const { xs, ys } = createSyntheticData(1500);
+      await model.fit(xs, ys, { epochs: 25, batchSize: 64, shuffle: true, verbose: 0 });
+      xs.dispose(); ys.dispose();
+      mlModel = model;
+      modelStatus.textContent = 'Model: trained ✓';
+      trainBtn.disabled = false;
+    }
+
+    function predictRiskNow() {
+      if (!mlModel) {
+        riskScoreEl.textContent = '--';
+        riskStatus.textContent = 'Model not trained';
+        return null;
+      }
+      const t = parseFloat(tempVal.textContent) || 0;
+      const h = parseFloat(humVal.textContent) || 0;
+      const m = parseFloat(moistVal.textContent) || 0;
+      const input = tf.tensor2d([[t, h, m]]);
+      const out = mlModel.predict(input);
+      const prob = out.dataSync()[0];
+      input.dispose(); out.dispose();
+
+      const pct = (prob*100).toFixed(1);
+      riskScoreEl.textContent = pct + '%';
+
+      riskCircle.className = 'risk-circle';
+      if (prob < 0.33) {
+        riskCircle.classList.add('safe');
+        riskStatus.textContent = '✅ SAFE';
+      } else if (prob < 0.66) {
+        riskCircle.classList.add('warning');
+        riskStatus.textContent = '⚠️ WARNING';
+      } else {
+        riskCircle.classList.add('danger');
+        riskStatus.textContent = '🔴 AT RISK';
+      }
+
+      const reasons = [];
+      const actions = [];
+      if (t > 30) {
+        reasons.push('High temperature increases spoilage risk.');
+        actions.push('Increase cooling / activate AC or improve ventilation.');
+      }
+      if (h > 70) {
+        reasons.push('High humidity risks mold and condensation.');
+        actions.push('Run dehumidifiers and inspect packaging.');
+      }
+      if (m < 25) {
+        reasons.push('Low warehouse moisture may cause dryness-related damage.');
+        actions.push('Increase humidity or inspect moisture barriers.');
+      }
+      if (m > 75) {
+        reasons.push('Very high moisture indicates leaks or water ingress.');
+        actions.push('Inspect for leaks, reduce water exposure.');
+      }
+      if (!reasons.length) {
+        reasons.push('Sensor readings are within acceptable ranges.');
+        actions.push('Continue monitoring.');
+      }
+
+      predictionReason.textContent = 'Reason: ' + reasons.join(' ');
+      predictionActions.innerHTML = '';
+      actions.forEach(a => { const li = document.createElement('li'); li.textContent = a; predictionActions.appendChild(li); });
+      return prob;
+    }
+
+    function downloadPredictionPDF() {
+      try {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+        let y = 50; const left = 40;
+        doc.setFontSize(16); doc.text('Prediction Report', left, y);
+        y+=20;
+        doc.setFontSize(11);
+        const now = new Date();
+        doc.text(`Generated: ${now.toLocaleString()}`, left, y); y+=16;
+        const prob = predictRiskNow();
+        if (prob !== null) {
+          doc.text(`Risk Score: ${(prob*100).toFixed(1)}%`, left, y); y+=14;
+          doc.text(`Status: ${prob > 0.5 ? 'AT RISK' : 'LIKELY SAFE'}`, left, y); y+=14;
+        }
+        doc.save(`prediction_${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}.pdf`);
+      } catch (e) {
+        console.error('Prediction PDF failed', e);
+      }
+    }
+
+    trainBtn.addEventListener('click', buildAndTrainModel);
+    predictBtn.addEventListener('click', predictRiskNow);
+    downloadPredPdf.addEventListener('click', downloadPredictionPDF);
   </script>
 </body>
 </html>
