@@ -1,720 +1,468 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>ESP32 Smart IoT Dashboard</title>
+  <title>ESP32 Smart IoT Dashboard PRO</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/justgage"></script>
   <script src="https://cdn.jsdelivr.net/npm/raphael"></script>
+  <!-- TensorFlow.js for client-side ML -->
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.7.0/dist/tf.min.js"></script>
+  <!-- jsPDF for PDF report -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
   <style>
     * {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      font-family: "Poppins", sans-serif;
       box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-      -webkit-tap-highlight-color: transparent;
-    }
-
-    html, body {
-      width: 100%;
-      height: 100%;
-      overflow-x: hidden;
     }
 
     body {
-      background: linear-gradient(135deg, #0a0e27 0%, #1a1f3a 50%, #0d1429 100%);
-      color: #fff;
+      /* Lighter, pastel-friendly default for better visualization */
+      background: linear-gradient(135deg, #f7fbff, #e8f4ff, #ffffff);
+      background-size: 600% 600%;
+      animation: bgshift 25s ease infinite;
+      color: #0b2540; /* dark navy for good contrast on light background */
+      text-align: center;
+      margin: 0;
+      padding: 20px;
       min-height: 100vh;
-      padding: 10px;
+      transition: 0.4s;
     }
 
-    /* Header */
-    header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 15px;
-      padding: 15px;
-      background: rgba(255, 255, 255, 0.08);
-      backdrop-filter: blur(10px);
-      border-radius: 15px;
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      box-shadow: 0 8px 32px rgba(0, 188, 212, 0.1);
-    }
+    @keyframes bgshift {
+      0% {
+        background-position: 0% 50%;
+      }
 
-    .header-left h1 {
-      font-size: 20px;
-      font-weight: 700;
-      background: linear-gradient(135deg, #00bcd4 0%, #4dd0e1 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      margin-bottom: 3px;
-    }
+      50% {
+        background-position: 100% 50%;
+      }
 
-    .status-indicator {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 11px;
-      color: #4dd0e1;
-    }
-
-    .status-dot {
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      background: #4dd0e1;
-      animation: pulse 2s infinite;
-    }
-
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.5; }
-    }
-
-    .header-right {
-      display: flex;
-      gap: 8px;
-    }
-
-    .theme-toggle {
-      background: rgba(77, 208, 225, 0.2);
-      border: 1px solid #4dd0e1;
-      color: #4dd0e1;
-      width: 36px;
-      height: 36px;
-      border-radius: 10px;
-      cursor: pointer;
-      font-size: 16px;
-      transition: all 0.3s ease;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .theme-toggle:active {
-      background: rgba(77, 208, 225, 0.4);
-      transform: scale(0.95);
-    }
-
-    /* Alert Box */
-    .alert-container {
-      margin-bottom: 12px;
-      padding: 12px 15px;
-      border-radius: 12px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      font-weight: 600;
-      font-size: 13px;
-      backdrop-filter: blur(10px);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      animation: slideDown 0.5s ease;
-    }
-
-    @keyframes slideDown {
-      from { opacity: 0; transform: translateY(-10px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-
-    .alert-container.success {
-      background: rgba(76, 175, 80, 0.15);
-      border-color: #4caf50;
-      color: #81c784;
-    }
-
-    .alert-container.warning {
-      background: rgba(255, 152, 0, 0.15);
-      border-color: #ff9800;
-      color: #ffb74d;
-    }
-
-    .alert-container.danger {
-      background: rgba(244, 67, 54, 0.15);
-      border-color: #f44336;
-      color: #ef5350;
-    }
-
-    .alert-icon {
-      font-size: 16px;
-      flex-shrink: 0;
-    }
-
-    /* Container */
-    .container {
-      max-width: 100%;
-      margin: 0 auto;
-    }
-
-    /* Grid Layout */
-    .dashboard-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
-      margin-bottom: 15px;
-    }
-
-    @media (max-width: 480px) {
-      .dashboard-grid {
-        grid-template-columns: 1fr;
-        gap: 8px;
+      100% {
+        background-position: 0% 50%;
       }
     }
 
-    /* Card Styles */
-    .card {
-      background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.04) 100%);
-      backdrop-filter: blur(10px);
-      border: 1px solid rgba(77, 208, 225, 0.2);
-      border-radius: 15px;
-      padding: 15px;
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-      transition: all 0.3s ease;
-      position: relative;
-      overflow: hidden;
-    }
-
-    .card:active {
-      transform: translateY(-3px);
-      border-color: #4dd0e1;
-    }
-
-    .card-title {
-      font-size: 14px;
-      font-weight: 700;
-      margin-bottom: 12px;
-      color: #4dd0e1;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .card-value {
+    h1 {
       font-size: 32px;
-      font-weight: 700;
-      margin: 10px 0;
-      background: linear-gradient(135deg, #00bcd4, #4dd0e1);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      text-align: center;
+      margin-bottom: 10px;
+      color: inherit;
+      text-shadow: none;
     }
 
-    .card-unit {
-      font-size: 12px;
-      color: #90caf9;
-      opacity: 0.8;
+    #themeToggle {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: #00ffff;
+      border: none;
+      border-radius: 50%;
+      padding: 10px;
+      cursor: pointer;
+      font-size: 20px;
     }
 
-    .progress-bar {
+    #alertBox {
+      padding: 8px 14px;
+      border-radius: 8px;
+      margin: 10px auto;
+      width: max-content;
+      background: #00aa66;
+      font-weight: bold;
+      transition: 0.3s;
+    }
+
+    #statusBadge {
+      padding: 6px 12px;
+      border-radius: 8px;
+      background: #555;
+      width: max-content;
+      margin: 10px auto 20px;
+    }
+
+    .dashboard {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 20px;
+      width: 90%;
+      max-width: 1200px;
+      margin: auto;
+    }
+
+    .card {
+      background: rgba(255, 255, 255, 0.92);
+      border-radius: 15px;
+      padding: 20px;
+      box-shadow: 0 6px 20px rgba(11, 37, 64, 0.06);
+      backdrop-filter: blur(6px);
+      position: relative;
+      transition: 0.3s;
+      color: inherit;
+    }
+
+    .card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 10px 30px rgba(11, 37, 64, 0.08);
+    }
+
+    .progress {
       width: 100%;
-      height: 6px;
-      background: rgba(255, 255, 255, 0.1);
+      height: 10px;
+      background: rgba(255, 255, 255, 0.15);
       border-radius: 10px;
-      margin-top: 10px;
+      margin-top: 8px;
       overflow: hidden;
     }
 
-    .progress-fill {
+    .bar {
       height: 100%;
-      background: linear-gradient(90deg, #4dd0e1, #00bcd4);
-      border-radius: 10px;
-      transition: width 0.6s ease;
-      box-shadow: 0 0 10px rgba(77, 208, 225, 0.5);
+      width: 0%;
+      background: linear-gradient(90deg, #7bd389, #ff9b8a);
+      transition: width 0.5s ease;
     }
 
-    /* Gauge Container */
-    .gauge-container {
-      display: flex;
-      justify-content: center;
-      margin: 8px 0;
-    }
-
-    /* Fan Control */
-    .fan-control {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      grid-column: 1 / -1;
-    }
-
-    .fan-icon {
-      width: 60px;
-      height: 60px;
-      margin: 10px 0;
-      transition: animation 0.3s ease;
-    }
-
-    .fan-icon.rotating {
-      animation: spin 2s linear infinite;
-    }
-
-    @keyframes spin {
-      from { transform: rotate(0deg); }
-      to { transform: rotate(360deg); }
-    }
-
-    .fan-status {
-      font-size: 16px;
-      font-weight: 700;
-      padding: 8px 12px;
-      border-radius: 10px;
-      margin: 10px 0;
-      text-align: center;
-      transition: all 0.3s ease;
-      width: 100%;
-    }
-
-    .fan-status.active {
-      background: rgba(76, 175, 80, 0.2);
-      color: #4caf50;
-      border: 1px solid #4caf50;
-    }
-
-    .fan-status.inactive {
-      background: rgba(244, 67, 54, 0.2);
-      color: #f44336;
-      border: 1px solid #f44336;
-    }
-
-    .button-group {
-      display: flex;
-      gap: 8px;
-      margin-top: 10px;
-      flex-wrap: wrap;
-      justify-content: center;
-      width: 100%;
-    }
-
-    /* Buttons */
-    .btn {
-      padding: 8px 12px;
-      border: none;
-      border-radius: 8px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 0.3px;
-      flex: 1;
-      min-width: 70px;
-      max-width: 130px;
-    }
-
-    .btn-primary {
-      background: linear-gradient(135deg, #4dd0e1, #00bcd4);
+    .on {
+      background: #00ff99;
       color: #000;
     }
 
-    .btn-primary:active {
-      transform: scale(0.95);
-      box-shadow: 0 4px 12px rgba(77, 208, 225, 0.4);
+    .off {
+      background: #ff3b3b;
     }
 
-    .btn-secondary {
-      background: rgba(77, 208, 225, 0.2);
-      color: #4dd0e1;
-      border: 1px solid #4dd0e1;
+    button {
+      border: none;
+      padding: 10px 15px;
+      margin-top: 10px;
+      border-radius: 8px;
+      background: #4da6ff;
+      color: #fff;
+      font-weight: 600;
+      cursor: pointer;
+      transition: 0.15s ease;
     }
 
-    .btn-secondary:active {
-      background: rgba(77, 208, 225, 0.3);
+    button:hover {
+      background: #7fbfff;
+      transform: translateY(-2px);
     }
 
-    .btn:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-
-    /* Chart Card */
-    .chart-card {
-      grid-column: 1 / -1;
-    }
-
-    /* Summary Grid */
-    .summary-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
-      gap: 8px;
-      margin-bottom: 8px;
-    }
-
-    @media (max-width: 480px) {
-      .summary-grid {
-        grid-template-columns: 1fr;
-      }
-    }
-
-    .summary-item {
-      background: rgba(77, 208, 225, 0.1);
-      padding: 10px;
-      border-radius: 10px;
-      border-left: 3px solid #4dd0e1;
-      text-align: center;
-    }
-
-    .summary-label {
-      font-size: 10px;
-      color: #90caf9;
-      text-transform: uppercase;
-      margin-bottom: 4px;
-    }
-
-    .summary-value {
-      font-size: 18px;
-      font-weight: 700;
-      color: #4dd0e1;
-    }
-
-    /* ML Section */
-    .ml-section {
-      grid-column: 1 / -1;
-    }
-
-    .risk-meter {
+    .download-group {
       display: flex;
-      align-items: center;
-      gap: 12px;
-      margin: 15px 0;
+      gap: 10px;
+      justify-content: center;
       flex-wrap: wrap;
+      margin-top: 10px;
     }
 
-    .risk-circle {
-      width: 80px;
-      height: 80px;
-      border-radius: 50%;
-      display: flex;
+    /* Prominent circular risk badge used by ML Prediction */
+    .risk-badge {
+      display: inline-flex;
       align-items: center;
       justify-content: center;
-      font-size: 28px;
-      font-weight: 700;
-      border: 3px solid;
-      transition: all 0.3s ease;
-      flex-shrink: 0;
-    }
-
-    .risk-circle.safe {
-      background: rgba(76, 175, 80, 0.15);
-      border-color: #4caf50;
-      color: #4caf50;
-    }
-
-    .risk-circle.warning {
-      background: rgba(255, 152, 0, 0.15);
-      border-color: #ff9800;
-      color: #ffb74d;
-    }
-
-    .risk-circle.danger {
-      background: rgba(244, 67, 54, 0.15);
-      border-color: #f44336;
-      color: #ef5350;
-    }
-
-    .risk-info {
-      flex: 1;
-      min-width: 150px;
-    }
-
-    .risk-status {
-      font-size: 14px;
-      font-weight: 700;
-      margin-bottom: 4px;
-    }
-
-    .risk-details {
-      font-size: 11px;
-      color: #90caf9;
-      line-height: 1.4;
-    }
-
-    .actions-list {
-      margin-top: 10px;
-      padding-left: 0;
-      list-style: none;
-    }
-
-    .actions-list li {
-      padding: 6px 0;
-      padding-left: 18px;
-      position: relative;
-      font-size: 11px;
-      color: #90caf9;
-      line-height: 1.4;
-    }
-
-    .actions-list li::before {
-      content: '✓';
-      position: absolute;
-      left: 0;
-      color: #4caf50;
-      font-weight: 700;
-    }
-
-    .threshold-control {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin: 12px 0;
-      padding: 12px;
-      background: rgba(77, 208, 225, 0.08);
-      border-radius: 10px;
-      font-size: 12px;
-      flex-wrap: wrap;
-    }
-
-    .threshold-control label {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      cursor: pointer;
-    }
-
-    .threshold-control input[type="range"] {
-      flex: 1;
-      min-width: 100px;
-      height: 5px;
-      border-radius: 3px;
-      background: rgba(77, 208, 225, 0.2);
-      outline: none;
-      -webkit-appearance: none;
-    }
-
-    .threshold-control input[type="range"]::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      width: 14px;
-      height: 14px;
+      width: 64px;
+      height: 64px;
       border-radius: 50%;
-      background: #4dd0e1;
-      cursor: pointer;
-      box-shadow: 0 0 8px rgba(77, 208, 225, 0.5);
+      background: #f0f6fb;
+      color: #0b2540;
+      font-weight: 800;
+      font-size: 16px;
+      box-shadow: 0 6px 18px rgba(11,37,64,0.06);
+      margin-left: 8px;
+      transition: transform 0.12s ease, background 0.12s ease, color 0.12s ease, box-shadow 0.12s ease;
     }
 
-    .threshold-control input[type="range"]::-moz-range-thumb {
-      width: 14px;
-      height: 14px;
+    .risk-badge.safe {
+      /* Large outlined circle for clear 'LIKELY SAFE' visibility at distance */
+      width: 96px;
+      height: 96px;
+      font-size: 20px;
+      background: rgba(230, 255, 239, 0.06);
+      color: #116530;
+      box-shadow: 0 6px 18px rgba(17,101,48,0.04);
+      border: 6px solid #0b2540; /* dark stroke for distant visibility */
+      transform: scale(1.02);
+    }
+
+    .risk-badge.warn {
+      background: #fff4e6;
+      color: #a65a00;
+      box-shadow: 0 6px 18px rgba(166,90,0,0.06);
+    }
+
+    .risk-badge.danger {
+      background: #ff4d4d;
+      color: #ffffff;
+      box-shadow: 0 8px 22px rgba(255,77,77,0.18);
+      transform: scale(1.06);
+    }
+
+    /* subtle pulse when danger is critical */
+    @keyframes dangerPulse {
+      0% { transform: scale(1.00); }
+      50% { transform: scale(1.06); }
+      100% { transform: scale(1.00); }
+    }
+
+    .risk-badge.danger.critical {
+      animation: dangerPulse 1.2s ease-in-out infinite;
+    }
+
+    /* Large dark alert style for 'AT RISK' - broad border for distant visibility */
+    .risk-badge.alert {
+      width: 96px;
+      height: 96px;
+      font-size: 22px;
       border-radius: 50%;
-      background: #4dd0e1;
-      cursor: pointer;
-      border: none;
-      box-shadow: 0 0 8px rgba(77, 208, 225, 0.5);
+      background: #0b2540; /* dark navy */
+      color: #ffffff;
+      box-shadow: 0 10px 30px rgba(11,37,64,0.18);
+      border: 6px solid #ffcf33; /* bright stroke for visibility */
+      transform: scale(1.02);
     }
 
-    /* Prediction Reason */
-    #predictionReason {
-      background: rgba(77, 208, 225, 0.1);
-      padding: 10px;
-      border-radius: 10px;
-      margin: 10px 0;
-      font-size: 11px;
-      line-height: 1.5;
+    .risk-badge.alert.critical {
+      animation: dangerPulse 1s ease-in-out infinite;
+      box-shadow: 0 14px 40px rgba(11,37,64,0.25);
     }
 
-    /* Footer */
     footer {
-      text-align: center;
-      padding: 15px;
-      color: #90caf9;
-      font-size: 10px;
-      margin-top: 15px;
+      margin-top: 25px;
+      font-size: 13px;
       opacity: 0.6;
     }
 
-    /* Light Theme */
+    /* Fan Animation */
+    @keyframes spin {
+      from {
+        transform: rotate(0deg);
+      }
+
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .fan-rotating {
+      animation: spin 1s linear infinite;
+      transform-origin: center;
+    }
+
+    /* Inverted/dark Theme when toggled */
     body.light {
-      background: linear-gradient(135deg, #f5f7fa 0%, #e8ecf1 50%, #f0f4f8 100%);
-      color: #333;
+      background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+      color: #fff;
     }
 
     body.light .card {
-      background: rgba(255, 255, 255, 0.8);
-      border-color: rgba(76, 175, 80, 0.3);
+      background: rgba(255, 255, 255, 0.08);
+      color: #fff;
+      box-shadow: 0 0 15px rgba(0, 255, 255, 0.12);
     }
 
-    body.light header {
-      background: rgba(0, 0, 0, 0.05);
+    body.light #themeToggle {
+      background: #00ffff;
+      color: #000;
     }
 
-    body.light .alert-container {
-      border-color: rgba(0, 0, 0, 0.2);
+    /* Responsive breakpoints for better visualization on varied devices */
+    @media (max-width: 1024px) {
+      .dashboard {
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 18px;
+        width: 95%;
+      }
+
+      h1 {
+        font-size: 28px;
+      }
+
+      .card {
+        padding: 16px;
+      }
     }
 
-    /* Scrollbar */
-    ::-webkit-scrollbar {
-      width: 6px;
+    @media (max-width: 768px) {
+      .dashboard {
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      }
+
+      h1 {
+        font-size: 24px;
+      }
+
+      .card {
+        padding: 14px;
+      }
+
+      .progress {
+        height: 8px;
+      }
+
+      /* make chart and gauges scale down on tablets and phones */
+      #dataChart {
+        width: 100% !important;
+        height: 160px !important;
+      }
+
+      #tempGauge, #humGauge, #moistureGauge {
+        width: 160px !important;
+        height: 140px !important;
+      }
+
+      #fanIcon {
+        width: 56px !important;
+        height: 56px !important;
+      }
+
+      #themeToggle {
+        top: 12px;
+        right: 12px;
+        padding: 8px;
+        font-size: 18px;
+      }
     }
 
-    ::-webkit-scrollbar-track {
-      background: rgba(77, 208, 225, 0.1);
-    }
+    @media (max-width: 480px) {
+      .dashboard {
+        grid-template-columns: 1fr;
+      }
 
-    ::-webkit-scrollbar-thumb {
-      background: rgba(77, 208, 225, 0.3);
-      border-radius: 3px;
+      body {
+        padding: 12px;
+      }
+
+      h1 {
+        font-size: 20px;
+      }
+
+      .card {
+        padding: 12px;
+      }
+
+      .download-group {
+        flex-direction: column;
+        gap: 8px;
+        align-items: stretch;
+      }
+
+      #dataChart {
+        height: 140px !important;
+      }
+
+      #tempGauge, #humGauge, #moistureGauge {
+        width: 140px !important;
+        height: 120px !important;
+      }
+
+      button {
+        padding: 8px 12px;
+        font-size: 14px;
+      }
+
+      #alertBox, #statusBadge {
+        font-size: 14px;
+      }
     }
   </style>
 </head>
+
 <body>
-  <!-- Header -->
-  <header>
-    <div class="header-left">
-      <h1>📊 IoT Dashboard</h1>
-      <div class="status-indicator">
-        <span class="status-dot"></span>
-        <span id="connectionStatus">Connecting...</span>
+  <h1>🌡 Temperature And Humidity Monitoring System Dashboard </h1>
+  <button id="themeToggle">🌙</button>
+  <div id="alertBox">✅ All Systems Normal</div>
+  <div id="statusBadge">Connecting...</div>
+
+  <div class="dashboard">
+    <div class="card">
+      <h2>🌡 Temperature</h2>
+      <div id="tempGauge" style="width:200px; height:160px; margin:auto;"></div>
+      <p><span id="tempValue">--</span> °C</p>
+      <div class="progress">
+        <div id="tempBar" class="bar"></div>
       </div>
     </div>
-    <div class="header-right">
-      <button class="theme-toggle" id="themeToggle">🌙</button>
-    </div>
-  </header>
 
-  <div class="container">
-    <!-- Alert -->
-    <div id="alertBox" class="alert-container success">
-      <span class="alert-icon">✅</span>
-      <span>All Systems Normal</span>
+    <div class="card">
+      <h2>💧 Humidity</h2>
+      <div id="humGauge" style="width:200px; height:160px; margin:auto;"></div>
+      <p><span id="humValue">--</span> %</p>
+      <div class="progress">
+        <div id="humBar" class="bar"></div>
+      </div>
     </div>
 
-    <!-- Sensor Cards -->
-    <div class="dashboard-grid">
-      <!-- Temperature Card -->
-      <div class="card">
-        <div class="card-title">🌡️ Temp</div>
-        <div class="gauge-container">
-          <div id="tempGauge" style="width:120px; height:100px;"></div>
-        </div>
-        <div style="text-align: center;">
-          <div class="card-value"><span id="tempValue">--</span><span class="card-unit">°C</span></div>
-        </div>
-        <div class="progress-bar">
-          <div id="tempBar" class="progress-fill"></div>
-        </div>
+    <div class="card">
+      <h2>🌱 Warehouse Moisture</h2>
+      <div id="moistureGauge" style="width:200px; height:160px; margin:auto;"></div>
+      <p><span id="moistureValue">--</span> %</p>
+      <div class="progress">
+        <div id="moistBar" class="bar"></div>
       </div>
+    </div>
 
-      <!-- Humidity Card -->
-      <div class="card">
-        <div class="card-title">💧 Humidity</div>
-        <div class="gauge-container">
-          <div id="humGauge" style="width:120px; height:100px;"></div>
-        </div>
-        <div style="text-align: center;">
-          <div class="card-value"><span id="humValue">--</span><span class="card-unit">%</span></div>
-        </div>
-        <div class="progress-bar">
-          <div id="humBar" class="progress-fill"></div>
-        </div>
-      </div>
-
-      <!-- Moisture Card -->
-      <div class="card">
-        <div class="card-title">🌱 Moisture</div>
-        <div class="gauge-container">
-          <div id="moistureGauge" style="width:120px; height:100px;"></div>
-        </div>
-        <div style="text-align: center;">
-          <div class="card-value"><span id="moistureValue">--</span><span class="card-unit">%</span></div>
-        </div>
-        <div class="progress-bar">
-          <div id="moistBar" class="progress-fill"></div>
-        </div>
-      </div>
-
-      <!-- Fan Control Card -->
-      <div class="card fan-control">
-        <div class="card-title">🌀 Fan Control</div>
-        <svg id="fanIcon" class="fan-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M12 12m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" fill="#4dd0e1"/>
-          <path d="M12 12l8 -2.5l-1 3.5l-7 2.5z" fill="#4dd0e1"/>
-          <path d="M12 12l-5 7l-1.5 -3l6.5 -4z" fill="#4dd0e1"/>
-          <path d="M12 12l-4 -8l3 1l1 7z" fill="#4dd0e1"/>
-        </svg>
-        <div id="fanStatus" class="fan-status inactive">🛑 Fan OFF</div>
-        <div class="button-group">
-          <button class="btn btn-primary" onclick="toggleFan(true)">ON</button>
-          <button class="btn btn-secondary" onclick="toggleFan(false)">OFF</button>
-        </div>
-        <p id="lastUpdated" style="font-size: 10px; color: #90caf9; margin-top: 8px;">Last: --</p>
-      </div>
-
-      <!-- Chart Card -->
-      <div class="card chart-card">
-        <div class="card-title">📈 Live Data</div>
-        <canvas id="dataChart" height="100"></canvas>
-        <div class="button-group" style="margin-top: 10px;">
-          <button class="btn btn-primary" onclick="downloadCSV()">CSV</button>
-          <button class="btn btn-primary" onclick="downloadPDF()">PDF</button>
-        </div>
-      </div>
-
-      <!-- Summary Section -->
-      <div class="card chart-card">
-        <div class="card-title">📊 Statistics</div>
-        <div class="summary-grid">
-          <div class="summary-item">
-            <div class="summary-label">Avg Temp</div>
-            <div class="summary-value"><span id="avgTemp">--</span>°</div>
-          </div>
-          <div class="summary-item">
-            <div class="summary-label">Avg Hum</div>
-            <div class="summary-value"><span id="avgHum">--</span>%</div>
-          </div>
-          <div class="summary-item">
-            <div class="summary-label">Avg Moist</div>
-            <div class="summary-value"><span id="avgMoist">--</span>%</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- ML Prediction Card -->
-      <div class="card ml-section">
-        <div class="card-title">🤖 AI Risk Analysis</div>
-        <div class="risk-meter">
-          <div id="riskCircle" class="risk-circle safe">
-            <span id="riskScore">--</span>
-          </div>
-          <div class="risk-info">
-            <div id="riskStatus" class="risk-status">Analyzing...</div>
-            <div id="riskVerdict" class="risk-details">Model training...</div>
-          </div>
-        </div>
-
-        <div id="predictionReason">Reason: --</div>
-        <ul id="predictionActions" class="actions-list"></ul>
-
-        <div class="threshold-control">
-          <label>Threshold:</label>
-          <input id="thresholdSlider" type="range" min="0" max="100" step="1" value="60" />
-          <span><span id="thresholdVal">60</span>%</span>
-          <label style="width: 100%;">
-            <input id="autoPredict" type="checkbox" />
-            Auto Predict
-          </label>
-        </div>
-
-        <div class="button-group">
-          <button class="btn btn-primary" id="trainModelBtn">Train</button>
-          <button class="btn btn-primary" id="predictBtn">Predict</button>
-          <button class="btn btn-secondary" id="downloadPredPdf">PDF</button>
-        </div>
-
-        <p id="modelStatus" style="margin-top: 8px; font-size: 10px; color: #90caf9;">Model: Not trained</p>
-      </div>
+    <div class="card">
+      <h2>🌀 Fan Control</h2>
+      <svg id="fanIcon" width="70" height="70" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"
+        style="margin-top:10px;">
+        <path d="M12 12m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" fill="#00ffcc" />
+        <path d="M12 12l8 -2.5l-1 3.5l-7 2.5z" fill="#00ffcc" />
+        <path d="M12 12l-5 7l-1.5 -3l6.5 -4z" fill="#00ffcc" />
+        <path d="M12 12l-4 -8l3 1l1 7z" fill="#00ffcc" />
+      </svg>
+      <div id="fanStatus" class="off">🛑 Fan OFF</div>
+      <button onclick="toggleFan(true)">Turn ON</button>
+      <button onclick="toggleFan(false)">Turn OFF</button>
+      <p id="lastUpdated">Last updated: --</p>
     </div>
   </div>
 
-  <footer>
-    Made by Manoj ⚡ | ESP32 + DHT11 + Blynk IoT
-  </footer>
+  <div class="card" style="margin-top:25px; width:90%; max-width:900px;">
+    <h2>📊 Live Sensor Data</h2>
+    <canvas id="dataChart" height="180"></canvas>
+
+    <div class="download-group">
+      <button onclick="downloadCSV()">📥 Download CSV</button>
+      <button onclick="downloadPDF()">📄 Download PDF Report</button>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:25px;">
+    <h2>📈 System Summary</h2>
+    <p>Avg Temp: <span id="avgTemp">--</span> °C</p>
+    <p>Avg Humidity: <span id="avgHum">--</span> %</p>
+    <p>Avg Moisture: <span id="avgMoist">--</span> %</p>
+  </div>
+
+  <div class="card" style="margin-top:25px;">
+  <h2>🤖 ML Prediction</h2>
+  <p>Risk Score: <span id="riskBadge" class="risk-badge"><strong id="riskScore">--</strong></span></p>
+  <p id="riskVerdict">Prediction: --</p>
+    <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+      <button id="trainModelBtn">Train Model (Synthetic)</button>
+      <button id="predictBtn">Predict Now</button>
+      <button id="downloadPredPdf">Download Prediction PDF</button>
+    </div>
+    <div style="margin-top:10px; display:flex; gap:10px; align-items:center; justify-content:center; flex-wrap:wrap;">
+      <label>Alert Threshold: <span id="thresholdVal">60%</span></label>
+      <input id="thresholdSlider" type="range" min="0" max="100" step="1" value="60" />
+      <label style="margin-left:8px;"><input id="autoPredict" type="checkbox" /> Auto Predict</label>
+    </div>
+  <div id="predictionReason" style="margin-top:10px; font-size:13px; opacity:0.95">Reason: --</div>
+    <ul id="predictionActions"
+      style="margin-top:8px; text-align:left; max-width:600px;margin-left:auto;margin-right:auto;"> </ul>
+    <p id="modelStatus" style="margin-top:8px; font-size:13px; opacity:0.9">Model: Not trained</p>
+  </div>
+
+  <footer>Made by Manoj ⚡ ESP32 + DHT11 + Warehouse Moisture + Blynk IoT</footer>
 
   <script>
+    // Blynk token
     const token = "mlE1Ig9YvQOfKEA1OX3CSYsoLEzI7nF6";
 
+    // Elements
     const tempVal = document.getElementById("tempValue");
     const humVal = document.getElementById("humValue");
     const moistVal = document.getElementById("moistureValue");
@@ -722,53 +470,85 @@
     const fanIcon = document.getElementById("fanIcon");
     const lastUpdated = document.getElementById("lastUpdated");
     const alertBox = document.getElementById("alertBox");
-    const connectionStatus = document.getElementById("connectionStatus");
+    const statusBadge = document.getElementById("statusBadge");
     const themeToggle = document.getElementById("themeToggle");
+
     const tempBar = document.getElementById("tempBar");
     const humBar = document.getElementById("humBar");
     const moistBar = document.getElementById("moistBar");
 
+    // arrays for averages + history
     const tempArr = [], humArr = [], moistArr = [];
 
+    // JustGage gauges
     const tempGauge = new JustGage({
       id: "tempGauge", value: 0, min: 0, max: 60, symbol: "°C",
-      gaugeWidthScale: 0.6, counter: true, levelColors: ["#4caf50", "#ffb74d", "#ef5350"]
+      gaugeWidthScale: 0.6, counter: true, levelColors: ["#00ff99", "#ffff33", "#ff3333"],
+      valueFontColor: '#0b2540', labelFontColor: '#6b7c8a'
     });
     const humGauge = new JustGage({
       id: "humGauge", value: 0, min: 0, max: 100, symbol: "%",
-      gaugeWidthScale: 0.6, counter: true, levelColors: ["#ffb74d", "#4caf50", "#4caf50"]
+      gaugeWidthScale: 0.6, counter: true, levelColors: ["#33ccff", "#0099ff", "#0044ff"],
+      valueFontColor: '#0b2540', labelFontColor: '#6b7c8a'
     });
     const moistGauge = new JustGage({
       id: "moistureGauge", value: 0, min: 0, max: 100, symbol: "%",
-      gaugeWidthScale: 0.6, counter: true, levelColors: ["#ffb74d", "#4caf50", "#81c784"]
+      gaugeWidthScale: 0.6, counter: true, levelColors: ["#ffcc00", "#00cc66", "#007700"],
+      valueFontColor: '#0b2540', labelFontColor: '#6b7c8a'
     });
 
+    // Chart.js line chart
     const ctx = document.getElementById("dataChart").getContext("2d");
     const chart = new Chart(ctx, {
       type: "line",
       data: {
         labels: [],
         datasets: [
-          { label: "Temperature", data: [], borderColor: "#ef5350", backgroundColor: "rgba(239,83,80,0.1)", fill: true, tension: 0.4, borderWidth: 2.5 },
-          { label: "Humidity", data: [], borderColor: "#4dd0e1", backgroundColor: "rgba(77,208,225,0.1)", fill: true, tension: 0.4, borderWidth: 2.5 },
-          { label: "Moisture", data: [], borderColor: "#4caf50", backgroundColor: "rgba(76,175,80,0.1)", fill: true, tension: 0.4, borderWidth: 2.5 }
+              { label: "Temp (°C)", data: [], borderColor: "#ff6666", backgroundColor: "rgba(255,102,102,0.2)", fill: true, tension: 0.4 },
+              { label: "Humidity (%)", data: [], borderColor: "#0077cc", backgroundColor: "rgba(0,119,204,0.12)", fill: true, tension: 0.4 },
+              { label: "Moisture (%)", data: [], borderColor: "#28a745", backgroundColor: "rgba(40,167,69,0.12)", fill: true, tension: 0.4 }
         ]
       },
       options: {
         responsive: true,
-        maintainAspectRatio: true,
-        scales: {
-          x: { ticks: { color: "#90caf9", font: { size: 12 } }, grid: { color: "rgba(255,255,255,0.05)" } },
-          y: { beginAtZero: true, ticks: { color: "#90caf9", font: { size: 12 } }, grid: { color: "rgba(255,255,255,0.05)" } }
-        },
-        plugins: { legend: { labels: { color: "#4dd0e1", font: { size: 12, weight: 600 }, padding: 15 } } }
+            scales: {
+              x: { ticks: { color: "#0b2540" }, grid: { color: "rgba(11,37,64,0.06)" } },
+              y: { beginAtZero: true, ticks: { color: "#0b2540" }, grid: { color: "rgba(11,37,64,0.06)" } }
+            },
+            plugins: { legend: { labels: { color: "#0b2540" } } }
       }
     });
 
+        // Update chart colors when theme changes (body.light is the dark/inverted theme in this layout)
+        function updateChartTheme(isDark) {
+          const tickColor = isDark ? '#ffffff' : '#0b2540';
+          const gridColor = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(11,37,64,0.06)';
+          if (chart && chart.options) {
+            if (chart.options.scales && chart.options.scales.x) {
+              chart.options.scales.x.ticks.color = tickColor;
+              chart.options.scales.x.grid.color = gridColor;
+            }
+            if (chart.options.scales && chart.options.scales.y) {
+              chart.options.scales.y.ticks.color = tickColor;
+              chart.options.scales.y.grid.color = gridColor;
+            }
+            if (chart.options.plugins && chart.options.plugins.legend && chart.options.plugins.legend.labels) {
+              chart.options.plugins.legend.labels.color = tickColor;
+            }
+            chart.update();
+          }
+        }
+
+        // Set initial chart theme based on current body class
+        updateChartTheme(document.body.classList.contains('light'));
+
+    // helper: compute average
     function avg(arr) {
-      return arr.length ? (arr.reduce((a,b)=>a+b,0)/arr.length).toFixed(1) : "--";
+      if (!arr.length) return "--";
+      return (arr.reduce((a, b) => a + b, 0) / arr.length).toFixed(1);
     }
 
+    // fetch + update UI
     async function updateData() {
       try {
         const [tempRes, humRes, moistRes, fanRes] = await Promise.all([
@@ -778,9 +558,8 @@
           fetch(`https://blynk.cloud/external/api/get?token=${token}&V2`)
         ]);
 
-        connectionStatus.textContent = "Connected";
-        alertBox.classList.remove("danger", "warning");
-        alertBox.classList.add("success");
+        statusBadge.textContent = "✅ Connected";
+        statusBadge.style.background = "#00aa66";
 
         const temp = parseFloat(await tempRes.text());
         const hum = parseFloat(await humRes.text());
@@ -795,163 +574,242 @@
         humGauge.refresh(hum);
         moistGauge.refresh(moist);
 
+        // progress bars
         tempBar.style.width = Math.min(Math.max(temp * 1.6, 0), 100) + "%";
         humBar.style.width = Math.min(Math.max(hum, 0), 100) + "%";
         moistBar.style.width = Math.min(Math.max(moist, 0), 100) + "%";
 
+  // dynamic colors (use darker defaults for better visibility on light background)
+  tempVal.style.color = temp > 31 ? "#ff3333" : temp < 20 ? "#00a3ff" : "#0b2540";
+  humVal.style.color = hum < 40 ? "#ffcc00" : "#0b2540";
+  moistVal.style.color = moist < 40 ? "#ffcc00" : "#0b2540";
+
+        // Alerts
         if (temp > 35) {
-          alertBox.innerHTML = '<span class="alert-icon">🔥</span><span>High Temperature!</span>';
-          alertBox.classList.remove("success", "warning");
-          alertBox.classList.add("danger");
+          alertBox.textContent = "🔥 High Temperature Detected!";
+          alertBox.style.background = "#ff3333";
         } else if (moist < 35) {
-          alertBox.innerHTML = '<span class="alert-icon">🌱</span><span>Low Moisture!</span>';
-          alertBox.classList.remove("success", "danger");
-          alertBox.classList.add("warning");
+          alertBox.textContent = "🌱 Dry!";
+          alertBox.style.background = "#ffaa00";
         } else {
-          alertBox.innerHTML = '<span class="alert-icon">✅</span><span>All Normal</span>';
-          alertBox.classList.remove("danger", "warning");
-          alertBox.classList.add("success");
+          alertBox.textContent = "✅ All Systems Normal";
+          alertBox.style.background = "#00aa66";
         }
 
+        // Fan status + animation
         if (fan === "1") {
-          fanStatus.textContent = "🌀 ON";
-          fanStatus.classList.remove("inactive");
-          fanStatus.classList.add("active");
-          fanIcon.classList.add("rotating");
+          fanStatus.textContent = "🌀 Fan ON";
+          fanStatus.classList.remove("off");
+          fanStatus.classList.add("on");
+          fanIcon.classList.add("fan-rotating");
         } else {
-          fanStatus.textContent = "🛑 OFF";
-          fanStatus.classList.remove("active");
-          fanStatus.classList.add("inactive");
-          fanIcon.classList.remove("rotating");
+          fanStatus.textContent = "🛑 Fan OFF";
+          fanStatus.classList.remove("on");
+          fanStatus.classList.add("off");
+          fanIcon.classList.remove("fan-rotating");
         }
 
         const now = new Date().toLocaleTimeString();
-        lastUpdated.textContent = "Last: " + now;
+        lastUpdated.textContent = "Last updated: " + now;
 
+        // push to chart
         chart.data.labels.push(now);
         chart.data.datasets[0].data.push(temp);
         chart.data.datasets[1].data.push(hum);
         chart.data.datasets[2].data.push(moist);
 
+        // keep recent 50 points to make CSV/PDF useful
         if (chart.data.labels.length > 50) {
           chart.data.labels.shift();
           chart.data.datasets.forEach(ds => ds.data.shift());
         }
         chart.update();
 
+        // keep arrays for averages
         tempArr.push(temp); humArr.push(hum); moistArr.push(moist);
         if (tempArr.length > 50) { tempArr.shift(); humArr.shift(); moistArr.shift(); }
         document.getElementById("avgTemp").textContent = avg(tempArr);
         document.getElementById("avgHum").textContent = avg(humArr);
         document.getElementById("avgMoist").textContent = avg(moistArr);
 
-        if (autoPredictEl.checked && mlModel) {
-          predictRiskNow();
+        // If auto-predict is enabled and model is trained, run prediction after updating data
+        try {
+          if (autoPredictEl.checked && mlModel) {
+            predictRiskNow();
+          }
+        } catch (e) {
+          console.error('Auto-predict error', e);
         }
+
       } catch (err) {
-        connectionStatus.textContent = "Error";
+        statusBadge.textContent = "⚠️ Connection Error";
+        statusBadge.style.background = "#aa0000";
+        console.error("❌ Error:", err);
       }
     }
 
+    // toggle fan control (sends command to Blynk)
     async function toggleFan(state) {
       const value = state ? 1 : 0;
       try {
         await fetch(`https://blynk.cloud/external/api/update?token=${token}&V2=${value}`);
+        // optimistic UI update
         updateData();
       } catch (e) {
         console.error("Fan toggle failed", e);
       }
     }
 
+    // Theme toggle
     themeToggle.onclick = () => {
       document.body.classList.toggle("light");
-      themeToggle.textContent = document.body.classList.contains("light") ? "☀️" : "🌙";
-      localStorage.setItem("theme", document.body.classList.contains("light") ? "light" : "dark");
+      const isDark = document.body.classList.contains("light");
+      themeToggle.textContent = isDark ? "☀️" : "🌙";
+      // update chart colors to remain readable on the new background
+      try { updateChartTheme(isDark); } catch (e) { /* ignore if chart not ready */ }
+      // update JustGage colors (value labels) for dark theme
+      try {
+        const valueColor = isDark ? '#ffffff' : '#0b2540';
+        const labelColor = isDark ? '#cceeee' : '#6b7c8a';
+        [tempGauge, humGauge, moistGauge].forEach(g => {
+          if (g && g.txt) {
+            // some JustGage builds expose text elements; try to update style when possible
+            try { g.txt.attr({ 'fill': valueColor }); } catch (e) { }
+          }
+        });
+      } catch (e) { }
     };
 
-    if (localStorage.getItem("theme") === "light") {
-      document.body.classList.add("light");
-      themeToggle.textContent = "☀️";
-    }
+    // ------------ Download functions (CSV + PDF) ------------
 
+    // CSV: build CSV from chart data, include header metadata rows
     function downloadCSV() {
       try {
         const now = new Date();
         const meta = [
-          ["IoT Dashboard Report"],
-          ["Generated:", now.toLocaleString()],
-          ["Avg Temp:", document.getElementById("avgTemp").textContent + "°C"],
-          ["Avg Humidity:", document.getElementById("avgHum").textContent + "%"],
-          ["Avg Moisture:", document.getElementById("avgMoist").textContent + "%"],
+          ["ESP32 IoT Dashboard Report"],
+          ["Generated At:", now.toLocaleString()],
+          ["Avg Temp (°C):", document.getElementById("avgTemp").textContent],
+          ["Avg Humidity (%):", document.getElementById("avgHum").textContent],
+          ["Avg Moisture (%):", document.getElementById("avgMoist").textContent],
           []
         ];
-        const header = ["Time", "Temp(°C)", "Humidity(%)", "Moisture(%)"];
-        const rows = chart.data.labels.map((label, i) => [label, chart.data.datasets[0].data[i] ?? "", chart.data.datasets[1].data[i] ?? "", chart.data.datasets[2].data[i] ?? ""]);
+
+        const header = ["Time", "Temperature (°C)", "Humidity (%)", "Moisture (%)"];
+        const rows = chart.data.labels.map((label, i) => {
+          const t = chart.data.datasets[0].data[i] ?? "";
+          const h = chart.data.datasets[1].data[i] ?? "";
+          const m = chart.data.datasets[2].data[i] ?? "";
+          return [label, t, h, m];
+        });
+
+        // Combine meta + header + rows
         const csvArray = [...meta, header, ...rows];
         const csvContent = csvArray.map(r => r.map(cell => {
-          if (!cell) return "";
+          // escape quotes and commas
+          if (cell === null || cell === undefined) return "";
           const str = String(cell);
-          return str.includes(",") || str.includes('"') ? `"${str.replace(/"/g, '""')}"` : str;
+          if (str.includes(",") || str.includes("\"") || str.includes("\n")) {
+            return `"${str.replace(/"/g, '""')}"`;
+          }
+          return str;
         }).join(",")).join("\n");
-        const blob = new Blob([csvContent], { type: "text/csv" });
+
+        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `iot_${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}.csv`;
+        a.download = `iot_report_${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}_${now.getHours()}${now.getMinutes()}.csv`;
+        document.body.appendChild(a);
         a.click();
+        a.remove();
         URL.revokeObjectURL(url);
       } catch (e) {
-        console.error("CSV failed:", e);
+        console.error("CSV download failed:", e);
       }
     }
 
+    // PDF: use jsPDF to create a simple report (meta + averages + recent table)
     async function downloadPDF() {
       try {
+        const now = new Date();
+        // get jsPDF from UMD
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF({ unit: "pt", format: "a4" });
-        const left = 30;
-        let y = 40;
-        doc.setFontSize(14);
-        doc.text("IoT Dashboard Report", left, y);
-        y += 15;
+        const left = 40;
+        let y = 50;
+        doc.setFontSize(16);
+        doc.text("ESP32 IoT Dashboard Report", left, y);
+        doc.setFontSize(10);
+        y += 20;
+        doc.text(`Generated At: ${now.toLocaleString()}`, left, y);
+        y += 16;
+        doc.text(`Average Temperature (°C): ${document.getElementById("avgTemp").textContent}`, left, y);
+        y += 14;
+        doc.text(`Average Humidity (%): ${document.getElementById("avgHum").textContent}`, left, y);
+        y += 14;
+        doc.text(`Average Moisture (%): ${document.getElementById("avgMoist").textContent}`, left, y);
+        y += 20;
+
+        // Add a small note about status/alert
+        const alertText = alertBox.textContent || "";
+        doc.text(`System Status: ${alertText}`, left, y);
+        y += 20;
+
+        // Table header
+        doc.setFontSize(11);
+        doc.text("Recent Readings (Time | Temp °C | Humidity % | Moisture %)", left, y);
+        y += 14;
         doc.setFontSize(9);
-        const now = new Date();
-        doc.text(`Generated: ${now.toLocaleString()}`, left, y);
-        y += 12;
-        doc.text(`Avg Temp: ${document.getElementById("avgTemp").textContent}°C`, left, y);
-        y += 10;
-        doc.text(`Avg Humidity: ${document.getElementById("avgHum").textContent}%`, left, y);
-        y += 10;
-        doc.text(`Avg Moisture: ${document.getElementById("avgMoist").textContent}%`, left, y);
-        y += 15;
-        const labels = chart.data.labels.slice(-15);
-        const tData = chart.data.datasets[0].data.slice(-15);
-        const hData = chart.data.datasets[1].data.slice(-15);
-        const mData = chart.data.datasets[2].data.slice(-15);
-        if (labels.length) {
-          labels.forEach((label, i) => {
-            doc.text(`${label} | T:${tData[i] || ""} H:${hData[i] || ""} M:${mData[i] || ""}`, left, y);
-            y += 10;
-            if (y > doc.internal.pageSize.height - 40) {
+
+        // Prepare rows - take last up to 20 entries
+        const labels = chart.data.labels.slice(-20);
+        const tData = chart.data.datasets[0].data.slice(-20);
+        const hData = chart.data.datasets[1].data.slice(-20);
+        const mData = chart.data.datasets[2].data.slice(-20);
+
+        // If none, add a placeholder
+        if (!labels.length) {
+          doc.text("No recent data available.", left, y);
+          y += 14;
+        } else {
+          // Table rows
+          const maxWidth = doc.internal.pageSize.width - left - 40; // margin
+          for (let i = 0; i < labels.length; i++) {
+            const line = `${labels[i]} | ${tData[i] ?? ""} | ${hData[i] ?? ""} | ${mData[i] ?? ""}`;
+            // wrap if necessary
+            const split = doc.splitTextToSize(line, maxWidth);
+            doc.text(split, left, y);
+            y += split.length * 12;
+            // new page if overflow
+            if (y > doc.internal.pageSize.height - 60) {
               doc.addPage();
-              y = 40;
+              y = 50;
             }
-          });
+          }
         }
-        doc.save(`iot_${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}.pdf`);
+
+        // Footer
+        const footerText = `Generated by ESP32 Smart IoT Dashboard PRO`;
+        doc.setFontSize(9);
+        doc.text(footerText, left, doc.internal.pageSize.height - 30);
+
+        const filename = `iot_report_${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}_${now.getHours()}${now.getMinutes()}.pdf`;
+        doc.save(filename);
       } catch (e) {
-        console.error("PDF failed:", e);
+        console.error("PDF download failed:", e);
       }
     }
 
+    // auto update interval
     setInterval(updateData, 3000);
+    // initial call
     updateData();
 
+    // ---------------- ML Prediction (TensorFlow.js) ----------------
     let mlModel = null;
     const modelStatus = document.getElementById('modelStatus');
     const riskScoreEl = document.getElementById('riskScore');
-    const riskCircle = document.getElementById('riskCircle');
-    const riskStatus = document.getElementById('riskStatus');
     const riskVerdict = document.getElementById('riskVerdict');
     const trainBtn = document.getElementById('trainModelBtn');
     const predictBtn = document.getElementById('predictBtn');
@@ -961,7 +819,9 @@
     const autoPredictEl = document.getElementById('autoPredict');
     const predictionReason = document.getElementById('predictionReason');
     const predictionActions = document.getElementById('predictionActions');
+  const riskBadge = document.getElementById('riskBadge');
 
+    // load saved threshold from localStorage
     let alertThreshold = Number(localStorage.getItem('alertThreshold') || 60);
     thresholdSlider.value = alertThreshold;
     thresholdVal.textContent = alertThreshold + '%';
@@ -972,23 +832,31 @@
       thresholdVal.textContent = alertThreshold + '%';
       localStorage.setItem('alertThreshold', String(alertThreshold));
     });
-
     autoPredictEl.addEventListener('change', (e) => {
       localStorage.setItem('autoPredict', e.target.checked ? '1' : '0');
     });
 
+    // Create synthetic dataset using domain heuristics. Returns {xs, ys}
     function createSyntheticData(n = 2000) {
       const xs = [];
       const ys = [];
       for (let i = 0; i < n; i++) {
-        const temp = Math.round((Math.random() * 30) + 10 + (Math.random() < 0.2 ? 5 : 0));
-        const hum = Math.round((Math.random() * 60) + 20 + (temp > 30 ? 10 : 0));
-        const moist = Math.round((Math.random() * 80));
+        // sample plausible sensor ranges with some correlations
+        const temp = Math.round((Math.random() * 30) + 10 + (Math.random() < 0.2 ? 5 : 0)); // 10-40
+        const hum = Math.round((Math.random() * 60) + 20 + (temp > 30 ? 10 : 0)); // 20-80
+        const moist = Math.round((Math.random() * 80)); // 0-80
+
+        // heuristic label: 1 means likely damage
+        // high temp + high humidity -> increased spoilage risk
+        // very low moisture in warehouse might mean dry/contrary depending on goods; we treat extreme moisture (too low or too high) as risk
         const tempRisk = temp > 30 ? 1 : 0;
         const humRisk = hum > 70 ? 1 : 0;
         const moistRisk = (moist < 25 || moist > 75) ? 1 : 0;
+
+        // combined probability for synthetic label
         const riskScore = (tempRisk * 0.5) + (humRisk * 0.3) + (moistRisk * 0.2);
         const label = Math.random() < riskScore ? 1 : 0;
+
         xs.push([temp, hum, moist]);
         ys.push(label);
       }
@@ -996,25 +864,38 @@
     }
 
     async function buildAndTrainModel() {
-      trainBtn.disabled = true;
-      modelStatus.textContent = 'Training...';
+      modelStatus.textContent = 'Model: training...';
+      // simple dense network for binary classification
       const model = tf.sequential();
       model.add(tf.layers.dense({ inputShape: [3], units: 16, activation: 'relu' }));
       model.add(tf.layers.dense({ units: 8, activation: 'relu' }));
       model.add(tf.layers.dense({ units: 1, activation: 'sigmoid' }));
       model.compile({ optimizer: tf.train.adam(0.01), loss: 'binaryCrossentropy', metrics: ['accuracy'] });
+
       const { xs, ys } = createSyntheticData(1500);
-      await model.fit(xs, ys, { epochs: 25, batchSize: 64, shuffle: true, verbose: 0 });
+      // train with small epochs to be fast on client
+      await model.fit(xs, ys, {
+        epochs: 25, batchSize: 64, shuffle: true, verbose: 0, callbacks: {
+          onEpochEnd: (epoch, logs) => { modelStatus.textContent = `Model: training... epoch ${epoch + 1} loss:${logs.loss.toFixed(3)} acc:${(logs.acc || logs.accuracy || 0).toFixed(2)}`; }
+        }
+      });
+
       xs.dispose(); ys.dispose();
       mlModel = model;
-      modelStatus.textContent = 'Model: ✓ Ready';
-      trainBtn.disabled = false;
+      modelStatus.textContent = 'Model: trained';
     }
 
+    // Predict risk using latest readings. Returns probability 0..1
     function predictRiskNow() {
       if (!mlModel) {
         riskScoreEl.textContent = '--';
-        riskStatus.textContent = 'Not trained';
+        riskVerdict.textContent = 'Prediction: Model not trained';
+        try {
+          if (riskBadge) {
+            riskBadge.classList.remove('safe', 'warn', 'danger', 'critical');
+            riskBadge.title = 'Model not trained';
+          }
+        } catch (e) {}
         return null;
       }
       const t = parseFloat(tempVal.textContent) || 0;
@@ -1025,74 +906,150 @@
       const prob = out.dataSync()[0];
       input.dispose(); out.dispose();
 
-      const pct = (prob*100).toFixed(0);
-      riskScoreEl.textContent = pct + '%';
+      const pct = (prob * 100).toFixed(1) + '%';
+      riskScoreEl.textContent = pct;
+      riskVerdict.textContent = `Prediction: ${prob > 0.5 ? 'AT RISK' : 'LIKELY SAFE'}`;
+      riskVerdict.style.color = prob > 0.5 ? '#ff3333' : '#00aa66';
 
-      riskCircle.className = 'risk-circle';
-      if (prob < 0.33) {
-        riskCircle.classList.add('safe');
-        riskStatus.textContent = '✅ SAFE';
-      } else if (prob < 0.66) {
-        riskCircle.classList.add('warning');
-        riskStatus.textContent = '⚠️ WARNING';
-      } else {
-        riskCircle.classList.add('danger');
-        riskStatus.textContent = '🔴 RISK';
-      }
+      // Update circular risk badge visibility and emphasis
+      try {
+        if (riskBadge) {
+          // set the text inside badge (strong#riskScore already updated)
+          // reset classes
+          riskBadge.classList.remove('safe', 'warn', 'danger', 'alert', 'critical');
+          const thresholdProb = alertThreshold / 100;
+          // Mapping: critical (>=0.9) -> attention; AT RISK (>0.5) -> large dark alert; warn if above threshold but not AT RISK; else safe
+          if (prob >= 0.9) {
+            riskBadge.classList.add('alert', 'critical');
+          } else if (prob > 0.5) {
+            // 'AT RISK' - large dark badge
+            riskBadge.classList.add('alert');
+          } else if (prob >= thresholdProb) {
+            // above user threshold but not AT RISK yet
+            riskBadge.classList.add('warn');
+          } else {
+            riskBadge.classList.add('safe');
+          }
+          // set a helpful tooltip
+          riskBadge.title = `Risk: ${pct} (threshold ${alertThreshold}%)`;
+        }
+      } catch (e) { console.error('Badge update error', e); }
 
+      // generate simple reason and recommended actions based on readings
       const reasons = [];
       const actions = [];
       if (t > 30) {
-        reasons.push('High temp');
-        actions.push('Improve cooling');
+        reasons.push('High temperature increases spoilage risk.');
+        actions.push('Increase cooling / activate AC or improve ventilation.');
+        actions.push('Check fan operation and adjust setpoints.');
       }
       if (h > 70) {
-        reasons.push('High humidity');
-        actions.push('Use dehumidifier');
+        reasons.push('High humidity risks mold and condensation.');
+        actions.push('Run dehumidifiers and inspect packaging.');
       }
       if (m < 25) {
-        reasons.push('Low moisture');
-        actions.push('Increase humidity');
+        reasons.push('Low warehouse moisture may cause dryness-related damage.');
+        actions.push('Increase humidity or inspect moisture barriers.');
       }
       if (m > 75) {
-        reasons.push('High moisture');
-        actions.push('Check for leaks');
+        reasons.push('Very high moisture indicates leaks or water ingress.');
+        actions.push('Inspect for leaks, reduce water exposure, move goods if needed.');
       }
       if (!reasons.length) {
-        reasons.push('Readings normal');
-        actions.push('Continue monitoring');
+        reasons.push('Sensor readings are within acceptable ranges.');
+        actions.push('Continue monitoring.');
       }
 
-      predictionReason.textContent = 'Reason: ' + reasons.join(', ');
+      predictionReason.textContent = 'Reason: ' + reasons.join(' ');
+      // populate actions list
       predictionActions.innerHTML = '';
       actions.forEach(a => { const li = document.createElement('li'); li.textContent = a; predictionActions.appendChild(li); });
+
+      // trigger alertBox if prob exceeds threshold
+      const thresholdProb = alertThreshold / 100;
+      if (prob >= thresholdProb) {
+        alertBox.textContent = `⚠️ Predicted Risk ${pct} — ${prob >= 0.9 ? 'IMMEDIATE ACTION' : 'AT RISK'}`;
+        alertBox.style.background = '#ff3333';
+      } else {
+        // if there are other hard alerts (temp>35), keep them; otherwise show normal or a predicted-safe message
+        if (parseFloat(tempVal.textContent) > 35) {
+          // keep existing high temp alert
+        } else if (parseFloat(moistVal.textContent) < 35) {
+          // keep dry alert
+        } else {
+          alertBox.textContent = `✅ Predicted Safe — Risk ${pct}`;
+          alertBox.style.background = '#00aa66';
+        }
+      }
       return prob;
     }
 
+    // Simple future-simulation: assume small drift using last two chart points (if available)
+    function simulateFutureRisk(hours = 6) {
+      // use last two readings for trend
+      const len = chart.data.labels.length;
+      if (len < 2) return null;
+      const t1 = chart.data.datasets[0].data[len - 2];
+      const t2 = chart.data.datasets[0].data[len - 1];
+      const h1 = chart.data.datasets[1].data[len - 2];
+      const h2 = chart.data.datasets[1].data[len - 1];
+      const m1 = chart.data.datasets[2].data[len - 2];
+      const m2 = chart.data.datasets[2].data[len - 1];
+
+      const dt = (t2 - t1);
+      const dh = (h2 - h1);
+      const dm = (m2 - m1);
+
+      // project linearly for hours steps (very simple)
+      let projected = { temp: t2, hum: h2, moist: m2 };
+      for (let i = 0; i < hours; i++) {
+        projected.temp += dt * 0.5; // damped
+        projected.hum += dh * 0.5;
+        projected.moist += dm * 0.5;
+      }
+
+      if (!mlModel) return null;
+      const input = tf.tensor2d([[projected.temp, projected.hum, projected.moist]]);
+      const out = mlModel.predict(input);
+      const prob = out.dataSync()[0];
+      input.dispose(); out.dispose();
+      return { prob, projected };
+    }
+
+    // Download short prediction PDF
     function downloadPredictionPDF() {
       try {
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF({ unit: 'pt', format: 'a4' });
-        let y = 40; const left = 30;
-        doc.setFontSize(14); doc.text('Prediction Report', left, y);
-        y+=15;
-        doc.setFontSize(9);
+        let y = 50; const left = 40;
+        doc.setFontSize(16); doc.text('Prediction Report', left, y);
+        y += 20;
+        doc.setFontSize(11);
         const now = new Date();
-        doc.text(`Generated: ${now.toLocaleString()}`, left, y); y+=12;
+        doc.text(`Generated: ${now.toLocaleString()}`, left, y); y += 16;
+        doc.text(`Latest readings: Temp ${tempVal.textContent} °C, Humidity ${humVal.textContent} %, Moisture ${moistVal.textContent} %`, left, y); y += 16;
         const prob = predictRiskNow();
         if (prob !== null) {
-          doc.text(`Risk Score: ${(prob*100).toFixed(0)}%`, left, y); y+=10;
-          doc.text(`Status: ${prob > 0.5 ? 'AT RISK' : 'SAFE'}`, left, y);
+          doc.text(`Current risk score: ${(prob * 100).toFixed(1)}%`, left, y); y += 14;
+          const sim = simulateFutureRisk(6);
+          if (sim) {
+            doc.text(`Projected (in ~6 steps) - Temp:${sim.projected.temp.toFixed(1)} Hum:${sim.projected.hum.toFixed(1)} Moist:${sim.projected.moist.toFixed(1)}`, left, y); y += 14;
+            doc.text(`Projected risk score: ${(sim.prob * 100).toFixed(1)}%`, left, y); y += 14;
+          }
+        } else {
+          doc.text('Model not trained yet or insufficient data to simulate future.', left, y); y += 14;
         }
-        doc.save(`pred_${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}.pdf`);
+        doc.save(`prediction_${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}.pdf`);
       } catch (e) {
         console.error('Prediction PDF failed', e);
       }
     }
 
-    trainBtn.addEventListener('click', buildAndTrainModel);
-    predictBtn.addEventListener('click', predictRiskNow);
-    downloadPredPdf.addEventListener('click', downloadPredictionPDF);
+    // Wire buttons
+    trainBtn.addEventListener('click', async () => { trainBtn.disabled = true; await buildAndTrainModel(); trainBtn.disabled = false; });
+    predictBtn.addEventListener('click', () => { predictRiskNow(); });
+    downloadPredPdf.addEventListener('click', () => { downloadPredictionPDF(); });
   </script>
 </body>
+
 </html>
